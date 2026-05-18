@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__ide__getDiagnostics",
+      "Bash(cd /d C:\\\\Users\\\\zhudo\\\\AndroidStudioProjects\\\\navipilot)",
+      "Bash(./gradlew.bat :app:compileDebugKotlin)",
+      "Bash(findstr /c:\"e:\" /c:\"error\" /c:\"BUILD\")",
+      "Bash(C:/Users/zhudo/AndroidStudioProjects/navipilot/gradlew.bat -p C:/Users/zhudo/AndroidStudioProjects/navipilot :app:compileDebugKotlin)",
+      "Bash(set PATH=C:\\\\PROGRA~1\\\\Android\\\\ANDROI~1\\\\jbr\\\\bin)",
+      "Bash(%PATH%)",
+      "Bash(cmd.exe /c \"cd /d C:\\\\Users\\\\zhudo\\\\AndroidStudioProjects\\\\navipilot && set PATH=C:\\\\PROGRA~1\\\\Android\\\\ANDROI~1\\\\jbr\\\\bin && .\\\\gradlew.bat :app:compileDebugKotlin 2>&1\")",
+      "Bash(cmd /c \"C:\\\\Users\\\\zhudo\\\\AndroidStudioProjects\\\\navipilot\\\\gradlew.bat -p C:\\\\Users\\\\zhudo\\\\AndroidStudioProjects\\\\navipilot :app:compileDebugKotlin\")",
+      "Bash(cmd *)",
+      "Bash(powershell.exe *)",
+      "Bash(C:/Users/zhudo/AndroidStudioProjects/navipilot/build_encrypted_apk.bat *)",
+      "Bash(./gradlew --stop)",
+      "Bash(./gradlew clean *)",
+      "Bash(git push *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  },
+  "disabledMcpjsonServers": [
+    "canvas-authoring"
+  ]
+}

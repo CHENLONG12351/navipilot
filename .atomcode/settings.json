@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": { "glob": "**/*.kt" },
+        "command": "./gradlew detekt"
+      },
+      {
+        "matcher": { "regex": "^app/src/main/java/com/example/navipilot/(.+)\\.kt$", "glob": "**/*.kt" },
+        "command": "./gradlew test --tests \"com.example.navipilot.*\""
+      }
+    ]
+  }
+}
