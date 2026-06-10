@@ -15,7 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -391,11 +390,11 @@ object MainActivityUIComponents {
                                 val buttonNumber = row * 3 + col + 1
                                 
                                 when (buttonNumber) {
-                                    // 1号按钮 - 帮助中心（MainActivityUI currentPage = 1 → HelpPage）
+                                    // 1号按钮 - 主页
                                     1 -> {
                                         Button(
                                             onClick = {
-                                                onPageChange(1)
+                                                onPageChange(0)
                                                 onDismiss()
                                             },
                                             modifier = Modifier
@@ -412,13 +411,13 @@ object MainActivityUIComponents {
                                                 verticalArrangement = Arrangement.Center
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.AutoMirrored.Filled.HelpOutline,
-                                                    contentDescription = "帮助",
+                                                    imageVector = Icons.Default.Home,
+                                                    contentDescription = "主页",
                                                     modifier = Modifier.size(24.dp),
                                                     tint = Color.White
                                                 )
                                                 Text(
-                                                    text = localized("帮助", "Help"),
+                                                    text = localized("主页", "Home"),
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color.White
@@ -633,11 +632,11 @@ object MainActivityUIComponents {
                                             }
                                         }
                                     }
-                                    // 7号按钮 - 驾驶报告（MainActivityUI currentPage = 7 → DrivingReportScreen）
+                                    // 7号按钮 - 主页
                                     7 -> {
                                         Button(
                                             onClick = {
-                                                onPageChange(7)
+                                                onPageChange(0)
                                                 onDismiss()
                                             },
                                             modifier = Modifier
@@ -654,13 +653,13 @@ object MainActivityUIComponents {
                                                 verticalArrangement = Arrangement.Center
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.Assessment,
-                                                    contentDescription = "报告",
+                                                    imageVector = Icons.Default.Home,
+                                                    contentDescription = "主页",
                                                     modifier = Modifier.size(24.dp),
                                                     tint = Color.White
                                                 )
                                                 Text(
-                                                    text = localized("报告", "Report"),
+                                                    text = localized("主页", "Home"),
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color.White

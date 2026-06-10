@@ -6,7 +6,6 @@ import android.util.Log
 import com.example.navipilot.core.AppAnalytics
 import com.example.navipilot.core.ErrorReporterInstance
 import com.example.navipilot.core.LocalErrorReporter
-import com.amap.api.maps.MapsInitializer
 import org.maplibre.android.MapLibre
 
 /**
@@ -46,14 +45,6 @@ class CarrotApplication : Application() {
         // 初始化匿名使用分析
         initializeAnalytics()
         
-        // 高德隐私合规（官方要求在调用地图/导航 SDK 前调用）
-        try {
-            MapsInitializer.updatePrivacyShow(this, true, true)
-            MapsInitializer.updatePrivacyAgree(this, true)
-        } catch (e: Exception) {
-            Log.w(TAG, "高德隐私合规初始化失败: ${e.message}")
-        }
-
         Log.i(TAG, "✅ CarrotApplication 初始化完成")
     }
     

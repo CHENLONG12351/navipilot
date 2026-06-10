@@ -66,8 +66,7 @@ fun Carrot7706JsonDebugOverlay(
                 )
             val sourceLast = fields.source_last
             val speedLimitSource = when (sourceLast) {
-                "AMAP" -> "  (高德车机)"; "amap_mobile" -> "  (腾讯优先)"
-                "TENCENT" -> "  (腾讯)"; "google_nav" -> "  (Google)"
+                "AMAP" -> "  (高德车机)"; "amap_mobile" -> "  (高德手机)"
                 else -> ""
             }
             obj.keys().asSequence().sorted().map { key ->

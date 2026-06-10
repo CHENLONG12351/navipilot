@@ -31,8 +31,6 @@ import android.content.pm.PackageManager
 import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONObject
-import com.example.navipilot.navigation.GoogleNavManager
-import com.example.navipilot.scoring.DrivingDataCollector
 
 
 /**
@@ -67,7 +65,7 @@ class MainActivityCore(
         /** 与停车/坐标等共用，保存用户选择的地图/导航源 */
         private const val PREF_CARROT_AMAP = "CarrotAmap"
         private const val KEY_USER_SELECTED_NAV_MODE = "user_selected_nav_mode"
-        private val VALID_USER_NAV_MODES = setOf("AMAP", "AMAP_PROJECTION", "TENCENT", "GOOGLE")
+        private val VALID_USER_NAV_MODES = setOf("AMAP", "AMAP_MOBILE", "OSM")
         
         // 🆕 API基础URL配置
         // 优先使用IP方式，失败后切换到网站URL
@@ -79,9 +77,6 @@ class MainActivityCore(
     // ===============================
     // 核心状态管理
     // ===============================
-
-    // 高德画面投射管理器（放在最前面，确保 init 块可使用）
-    var amapProjectionManager: AmapProjectionManager? = null
 
     /** Comma3 CarrotMan字段映射数据 */
     val carrotManFields = mutableStateOf(CarrotManFields())
@@ -108,10 +103,10 @@ class MainActivityCore(
     val deviceInfo = mutableStateOf("")
     
     // 地图服务状态 — 三模互斥（默认按高德车机版场景，仍可由广播与定时逻辑切 OSM）
-    val mapServiceType = mutableStateOf("AMAP") // "OSM" / "AMAP" / "TENCENT"
+    val mapServiceType = mutableStateOf("AMAP") // "OSM" / "AMAP" / "AMAP_MOBILE"
     val activeNavMode = mutableStateOf("AMAP")  // 当前活跃导航模式（三选一）
     /** 底部切换器上用户选择的模式（与自动广播切换解耦，便于后续逻辑读取） */
-    var userSelectedMode by mutableStateOf("AMAP") // "OSM" / "AMAP" / "TENCENT" / "AMAP_MOBILE"
+    var userSelectedMode by mutableStateOf("AMAP") // "OSM" / "AMAP" / "AMAP_MOBILE"
     val lastAmapBroadcastTime = mutableStateOf(0L) // 最后一次接收到高德广播的时间
 
     init {
@@ -137,11 +132,6 @@ class MainActivityCore(
     }
 
     // 第二个 init 块：初始化高德画面投射管理器（必须在属性声明之后）
-    init {
-        amapProjectionManager = AmapProjectionManager(activity)
-        Log.i(TAG, "✅ AmapProjectionManager 已初始化")
-    }
-
     /** 将当前 [userSelectedMode] 写入 SharedPreferences，供下次启动恢复 */
     fun persistUserSelectedNavMode() {
         try {
@@ -155,14 +145,11 @@ class MainActivityCore(
     }
     
     /**
-     * 定时检查地图服务类型（仅在非 TENCENT 模式下自动切换 OSM/AMAP）
+     * 定时检查地图服务类型（仅在非 AMAP_MOBILE 模式下自动切换 OSM/AMAP）
      */
     fun updateMapServiceType() {
         // 嵌入第三方 SDK 导航时不自动切换 OSM/车机高德
-        if (activeNavMode.value == "TENCENT" ||
-            activeNavMode.value == "AMAP_MOBILE" ||
-            activeNavMode.value == "GOOGLE"
-        ) {
+        if (activeNavMode.value == "AMAP_MOBILE") {
             return
         }
 
@@ -177,42 +164,15 @@ class MainActivityCore(
     }
     
     /**
-     * 标记收到高德广播（仅在非 TENCENT 模式下切换到 AMAP）
+     * 标记收到高德广播（仅在非 AMAP_MOBILE 模式下切换到 AMAP）
      */
     fun markAmapBroadcastReceived() {
         lastAmapBroadcastTime.value = System.currentTimeMillis()
-        if (activeNavMode.value != "TENCENT" &&
-            activeNavMode.value != "AMAP_MOBILE" &&
-            activeNavMode.value != "GOOGLE"
-        ) {
+        if (activeNavMode.value != "AMAP_MOBILE") {
             activeNavMode.value = "AMAP"
         }
     }
     
-    /**
-     * 切换到腾讯导航模式（进入 TencentNavPage 时调用）
-     */
-    fun switchToTencentMode() {
-        Log.i(TAG, "🔄 切换到腾讯导航模式 (之前: ${activeNavMode.value})")
-        activeNavMode.value = "TENCENT"
-        mapServiceType.value = "TENCENT"
-        // 设置数据源标记
-        carrotManFields.value = carrotManFields.value.copy(source_last = "tencent")
-    }
-
-    /**
-     * 退出腾讯导航模式（离开 TencentNavPage 时调用）
-     * 根据 AMAP 广播状态自动回退到 AMAP 或 OSM
-     */
-    fun exitTencentMode() {
-        val currentTime = System.currentTimeMillis()
-        val timeSinceLastBroadcast = currentTime - lastAmapBroadcastTime.value
-        val fallbackMode = if (timeSinceLastBroadcast < 30000) "AMAP" else "OSM"
-        Log.i(TAG, "🔄 退出腾讯导航模式 → $fallbackMode")
-        activeNavMode.value = fallbackMode
-        mapServiceType.value = fallbackMode
-    }
-
     /** 切换到高德手机 SDK 嵌入导航模式 */
     fun switchToAmapMobileMode() {
         Log.i(TAG, "🔄 切换到高德手机导航模式 (之前: ${activeNavMode.value})")
@@ -230,25 +190,6 @@ class MainActivityCore(
         activeNavMode.value = fallbackMode
         mapServiceType.value = fallbackMode
     }
-
-    /** 切换到 Google 导航模式 */
-    fun switchToGoogleMode() {
-        Log.i(TAG, "🔄 切换到 Google 导航模式 (之前: ${activeNavMode.value})")
-        activeNavMode.value = "GOOGLE"
-        mapServiceType.value = "GOOGLE"
-        carrotManFields.value = carrotManFields.value.copy(source_last = "google_nav")
-    }
-
-    /** 退出 Google 导航 */
-    fun exitGoogleMode() {
-        val currentTime = System.currentTimeMillis()
-        val timeSinceLastBroadcast = currentTime - lastAmapBroadcastTime.value
-        val fallbackMode = if (timeSinceLastBroadcast < 30000) "AMAP" else "OSM"
-        Log.i(TAG, "🔄 退出 Google 导航模式 → $fallbackMode")
-        activeNavMode.value = fallbackMode
-        mapServiceType.value = fallbackMode
-    }
-
 
     // 实时网络流程事件（用于在主页顶部显示发现->连接链路）
     val pipelineEvents = mutableStateListOf<String>()
@@ -276,16 +217,6 @@ class MainActivityCore(
     lateinit var networkManager: NetworkManager
     // 条件实验模式管理器
     lateinit var conditionalExperimentManager: ConditionalExperimentManager
-
-    // Google 导航管理器（懒创建，首次进入 Google 模式时初始化，跨页面保持引用）
-    private var _googleNavManager: GoogleNavManager? = null
-    val googleNavManager: GoogleNavManager?
-        get() {
-            if (_googleNavManager == null) {
-                _googleNavManager = GoogleNavManager(context, carrotManFields)
-            }
-            return _googleNavManager
-        }
 
     /**
      * 安全获取 ConditionalExperimentManager（用于 UI 组件）
@@ -371,26 +302,10 @@ class MainActivityCore(
     
     // 自动超车管理器
     lateinit var autoOvertakeManager: AutoOvertakeManager
-    
-    // 驾驶评分数据采集器
-    var drivingDataCollector: DrivingDataCollector? = null
-    
-    /**
-     * 安全获取 DrivingDataCollector（用于 UI 组件）
-     * 如果未初始化，返回 null
-     */
-    fun getDrivingDataCollectorSafely(): DrivingDataCollector? {
-        return drivingDataCollector
-    }
 
     // HTTP参数客户端（替代ZMQ用于参数读写）
     var carrotParamClient: CarrotParamClient? = null
 
-    /**
-     * 安全获取 AmapProjectionManager
-     */
-    fun getAmapProjectionManagerSafely(): AmapProjectionManager? = amapProjectionManager
-    
     // 内存监控定时器
     var memoryMonitorTimer: java.util.Timer? = null
     
@@ -1228,16 +1143,6 @@ class MainActivityCore(
                 autoOvertakeManager.cleanup()
                 Log.i(TAG, "🧹 自动超车管理器已清理")
             }
-
-            // 清理 Google 导航管理器
-            _googleNavManager?.destroy()
-            _googleNavManager = null
-            Log.i(TAG, "🧹 Google 导航管理器已清理")
-
-            // 清理高德画面投射管理器
-            amapProjectionManager?.release()
-            amapProjectionManager = null
-            Log.i(TAG, "🧹 高德画面投射管理器已清理")
 
             // 停止内存监控
             stopMemoryMonitoring()

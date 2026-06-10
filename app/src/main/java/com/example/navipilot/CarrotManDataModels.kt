@@ -54,37 +54,7 @@ data class LaneInfo(
     val trafficLaneType: Int = 0
 )
 
-/**
- * 腾讯导航 SDK 与车道检测等「尾部」字段单独成 data class，
- * 缩短 [CarrotManFields] 主构造 / [copy] 的 JVM 参数与 Kotlin 默认掩码数量，
- * 避免在真机上出现 `VerifyError`（ART 校验 copy$default / 巨型 <init> 失败）。
- */
-data class CarrotManTencentSlice(
-    var tCameraType: Int = -1,
-    var tCameraDist: Int = 0,
-    var tCameraSpeedLimit: Int = 0,
-    var remainingTrafficLights: Int = 0,
-    var passedDistance: Int = 0,
-    var passedTime: Int = 0,
-    var isOnMainRoad: Boolean = true,
-    var canSwitchToMainRoad: Boolean = false,
-    var canSwitchToSideRoad: Boolean = false,
-    var tencentRoutePoints: List<Pair<Double, Double>> = emptyList(),
-    var tencentRoutePointsReady: Boolean = false,
-    var trafficJamAhead: Boolean = false,
-    var trafficJamDistance: Int = 0,
-    var trafficJamDuration: Int = 0,
-    var trafficJamStatus: Int = 0,
-    var tollEntranceName: String = "",
-    var tollExitName: String = "",
-    var tollFee: Int = 0,
-    var gpsSignalStatus: Int = 0,
-    var roadGrade: Int = -1,
-    var roadKind: Int = -1,
-    var tSdkIntersectionType: Int = -1,
-    var leftLaneVehicle: Boolean = false,
-    var rightLaneVehicle: Boolean = false,
-)
+
 
 // 精简后的CarrotMan字段映射数据类
 // 仅保留：①发送给comma3的44个UDP字段 ②内部处理/桥接需要的辅助字段
@@ -242,22 +212,12 @@ data class CarrotManFields(
     // 发送控制
     var needsImmediateSend: Boolean = false,    // 强制立即发送（限速变化等）
 
-    // ═══════════════════════════════════════════════════════════
-    // ③ 腾讯 SDK / 车道检测嵌套 slice（ART VerifyError 保护）
-    // ═══════════════════════════════════════════════════════════
-    var tencentSlice: CarrotManTencentSlice = CarrotManTencentSlice(),
 ) {
     /** SDK日夜模式 (true=夜间) — 非构造函数参数，避免copy()膨胀 */
     @Transient var isNightMode: Boolean = false
     /** 是否偏航中 — 非构造函数参数，避免copy()膨胀 */
     @Transient var isOffRoute: Boolean = false
 }
-
-/** 仅替换腾讯/车道检测子块，避免手写冗长的 `copy(tencentSlice = …)` */
-fun CarrotManFields.withTencentSlice(transform: (CarrotManTencentSlice) -> CarrotManTencentSlice): CarrotManFields =
-    copy(tencentSlice = transform(tencentSlice))
-
-
 
 
 

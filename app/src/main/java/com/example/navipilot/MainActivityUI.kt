@@ -2,6 +2,7 @@
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import com.example.navipilot.utils.CoordinatePreferences
 import android.content.SharedPreferences
@@ -75,21 +76,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.navipilot.ui.components.HelpPage
 import com.example.navipilot.ui.components.NavMode
 import com.example.navipilot.ui.components.OsmMapView
-import com.example.navipilot.ui.components.ProfilePage
-import com.example.navipilot.ui.components.AmapProjectionView
 import com.example.navipilot.ui.components.AutoSwitchExperimentPage
 import com.example.navipilot.ui.components.Carrot7706JsonDebugOverlay
-import com.example.navipilot.ui.components.TencentNavPage
-import com.example.navipilot.ui.components.GoogleNavPage
-import com.example.navipilot.navigation.GoogleNavManager
-import com.example.navipilot.ui.components.GoogleWelcomeDialog
-import com.example.navipilot.ui.components.hasGoogleWelcomeShown
-import com.example.navipilot.ui.components.PrivacyConsentDialog
-import com.example.navipilot.ui.components.hasPrivacyConsent
-import com.example.navipilot.ui.driving.DrivingReportScreen
 import com.example.navipilot.ui.theme.NavipilotTheme
 import com.example.navipilot.ui.utils.localized
 import kotlinx.coroutines.launch
@@ -111,53 +101,7 @@ class MainActivityUI(
         NavipilotTheme {
             val appContext = LocalContext.current
 
-            // 🆕 隐私政策
-            var showPrivacyDialog by remember { mutableStateOf(!hasPrivacyConsent(appContext)) }
             
-            if (showPrivacyDialog) {
-                PrivacyConsentDialog(
-                    onAgree = {
-                        showPrivacyDialog = false
-                    },
-                    onDisagree = {
-                        (appContext as? android.app.Activity)?.finish()
-                    }
-                )
-                return@NavipilotTheme
-            }
-
-            // 🗾 Google 地图首次欢迎弹窗（首次启动时显示，仅显示一次）
-            var showGoogleWelcome by remember { mutableStateOf(
-                !hasGoogleWelcomeShown(appContext)
-            ) }
-
-            // Google 欢迎弹窗
-            if (showGoogleWelcome) {
-                GoogleWelcomeDialog(
-                    onConfirm = {
-                        showGoogleWelcome = false
-                    }
-                )
-                // 阻止其他 UI 渲染直到确认
-                return@NavipilotTheme
-            }
-            
-            // 🆕 导航结束自动跳转到驾驶报告页面
-            var wasNavigating by remember { mutableStateOf(false) }
-            LaunchedEffect(core.carrotManFields.value.isNavigating) {
-                val isNowNavigating = core.carrotManFields.value.isNavigating
-                // 检测导航结束：从"导航中"变为"非导航"
-                if (wasNavigating && !isNowNavigating) {
-                    // 导航刚结束，检查是否有驾驶数据
-                    val collector = core.getDrivingDataCollectorSafely()
-                    if (collector != null && collector.hasData()) {
-                        // 有驾驶数据，跳转到驾驶报告页面
-                        core.currentPage = 7
-                    }
-                }
-                wasNavigating = isNowNavigating
-            }
-
             // 不使用 Scaffold 的 bottomBar，改为手动叠加，让导航栏浮在内容上方
             Box(modifier = Modifier.fillMaxSize()) {
                 // 拦截返回键：正常返回
@@ -182,35 +126,15 @@ class MainActivityUI(
                         core.persistUserSelectedNavMode()
                     }
                     navMode = when (core.userSelectedMode) {
-                        "TENCENT" -> NavMode.TENCENT
-                        "GOOGLE" -> NavMode.GOOGLE
-                        "AMAP_PROJECTION" -> NavMode.AMAP_PROJECTION
                         "AMAP" -> NavMode.AMAP_AUTO
                         else -> NavMode.AMAP_AUTO
-                    }
-                    // 用户类型 3（赞助者）每日自动回退到高德车机版
-                    if (core.userType.value == 3 &&
-                        (navMode == NavMode.TENCENT)
-                    ) {
-                        val resetPrefs = appContext.getSharedPreferences("navipilot_prefs", Context.MODE_PRIVATE)
-                        val today = java.time.LocalDate.now().toString()
-                        val lastReset = resetPrefs.getString("user3_daily_reset", "") ?: ""
-                        if (lastReset != today) {
-                            resetPrefs.edit().putString("user3_daily_reset", today).apply()
-                            core.userSelectedMode = "AMAP"
-                            core.persistUserSelectedNavMode()
-                            navMode = NavMode.AMAP_AUTO
-                        }
                     }
                 }
 
                 // 地图源选择处理：这里只更新偏好，不立即跳转或拉起地图
                 fun handleModeChange(mode: NavMode) {
                     core.userSelectedMode = when (mode) {
-                        NavMode.TENCENT -> "TENCENT"
                         NavMode.AMAP_AUTO -> "AMAP"
-                        NavMode.AMAP_PROJECTION -> "AMAP_PROJECTION"
-                        NavMode.GOOGLE -> "GOOGLE"
                     }
                     core.persistUserSelectedNavMode()
                     navMode = mode
@@ -235,12 +159,6 @@ class MainActivityUI(
                             navMode = navMode,
                             onModeChange = { mode -> handleModeChange(mode) }
                         )
-                        1 -> HelpPage(
-                            deviceIP = core.networkManager.getCurrentDeviceIP()
-                        )
-                        2 -> ProfilePage(
-                            deviceId = core.deviceId.value
-                        )
                         4 -> AutoSwitchExperimentPage(
                             onBack = {
                                 core.currentPage = 0
@@ -248,12 +166,6 @@ class MainActivityUI(
                             conditionalExperimentManager = core.getConditionalExperimentManagerSafely(),
                             carrotParamClient = core.getCarrotParamClientSafely(),
                             carrotManFields = core.carrotManFields
-                        )
-                        7 -> DrivingReportScreen(
-                            onBack = {
-                                core.currentPage = 0
-                            },
-                            drivingDataCollector = core.getDrivingDataCollectorSafely()
                         )
                     }
 
@@ -290,12 +202,9 @@ class MainActivityUI(
     ) {
         val scrollState = rememberScrollState()
         val data by core.xiaogeData
-        // 视频展开/折叠状态（默认隐藏，用户点击摄像机图标才显示）
-        var isVideoExpanded by remember { mutableStateOf(false) }
-        // 🆕 摄像头全屏模式（点击右侧摄像头预览切换）
-        var isCameraFullscreen by remember { mutableStateOf(false) }
         // 数据卡片展开/折叠状态
         var isDataCardExpanded by remember { mutableStateOf(true) }
+        var isVideoExpanded by remember { mutableStateOf(false) }
         // 高阶功能对话框状态
         var showAdvancedDialog by remember { mutableStateOf(false) }
         // 点击首页预览条：全屏 7706 JSON 调试
@@ -377,16 +286,8 @@ class MainActivityUI(
                 isDataCardExpanded = isDataCardExpanded,
                 onToggleDataCard = { isDataCardExpanded = true },
                 onPageChange = { page -> core.currentPage = page },
-                onOpenTencentEmbeddedNav = {
-                    core.userSelectedMode = "TENCENT"
-                    core.persistUserSelectedNavMode()
-                },
                 onOpenAmapMobileEmbeddedNav = {
                     core.userSelectedMode = "AMAP_MOBILE"
-                    core.persistUserSelectedNavMode()
-                },
-                onOpenGoogleEmbeddedNav = {
-                    core.userSelectedMode = "GOOGLE"
                     core.persistUserSelectedNavMode()
                 },
                 cruiseSetSpeed = try { carrotManFields.vCruiseKph.toInt() } catch (_: Exception) { 0 },
@@ -420,316 +321,75 @@ class MainActivityUI(
 
         // 地图区 Composable lambda（复用于竖屏/横屏两种布局）
         val mapZoneContent: @Composable () -> Unit = {
-            if (isCameraFullscreen) {
-                // 摄像头全屏模式
-                val wsClient = core.carrotWsClient
-                val cameraFrame = wsClient?.cameraFrame?.collectAsState()
-                val camData = cameraFrame?.value
-                Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFF0F172A))) {
-                    if (camData != null && camData.payload.isNotEmpty()) {
-                        com.example.navipilot.ui.components.CameraPreview(
-                            frameBytes = camData.payload,
-                            width = camData.width,
-                            height = camData.height,
-                            isKeyFrame = camData.keyFrame,
-                            modifier = Modifier.fillMaxSize(),
-                            wsClient = wsClient
-                        )
-                    } else {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            androidx.compose.material3.Text(
-                                "📷 ${localized("等待摄像头画面...", "Waiting for camera...")}",
-                                fontSize = 16.sp, color = Color(0xFF94A3B8)
-                            )
-                        }
-                    }
-                }
-            } else {
-                // 正常地图模式
-                // 高德画面投射模式：永远显示投射视图，不随导航状态切换
-                if (mapService == "AMAP_PROJECTION") {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        AmapProjectionView(
-                            projectionManager = core.amapProjectionManager,
-                            startAmap = { core.launchAmapAuto() }
-                        )
-                    }
-                } else {
-                val isNavActive = carrotManFields.isNavigating
-            when {
-                // 导航中：根据用户选择的模式显示对应嵌入式导航
-                isNavActive -> {
-                    when (mapService) {
-                        "TENCENT" -> {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                TencentNavPage(
-                                    carrotManFieldsState = core.carrotManFields,
-                                    goalLat = core.carrotManFields.value.goalPosY,
-                                    goalLon = core.carrotManFields.value.goalPosX,
-                                    goalName = core.carrotManFields.value.szGoalName,
-                                    currentLat = currentNavStartLat,
-                                    currentLon = currentNavStartLon,
-                                    networkClient = core.networkManager.getNetworkClient(),
-                                    deviceIP = core.networkManager.getCurrentDeviceIP(),
-                                    onEnterTencentMode = { core.switchToTencentMode() },
-                                    onExitTencentMode = { core.exitTencentMode() },
-                                    onBack = {
-                                        core.exitTencentMode()
-                                        // 切换回默认地图服务
-                                        core.userSelectedMode = "AMAP"
-                                        core.persistUserSelectedNavMode()
-                                    }
-                                )
-                            }
-                        }
-                        "GOOGLE" -> {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                GoogleNavPage(
-                                    navManager = core.googleNavManager,
-                                    carrotManFieldsState = core.carrotManFields,
-                                    goalLat = core.carrotManFields.value.goalPosY,
-                                    goalLon = core.carrotManFields.value.goalPosX,
-                                    goalName = core.carrotManFields.value.szGoalName,
-                                    currentLat = currentNavStartLat,
-                                    currentLon = currentNavStartLon,
-                                    networkClient = core.getNetworkClientSafely(),
-                                    onEnterGoogleMode = { core.switchToGoogleMode() },
-                                    onExitGoogleMode = { core.exitGoogleMode() },
-                                    onBack = {
-                                        core.exitGoogleMode()
-                                        // 切换回默认地图服务
-                                        core.userSelectedMode = "AMAP"
-                                        core.persistUserSelectedNavMode()
-                                    }
-                                )
-                            }
-                        }
-                        else -> osmMapView()
-                    }
-                }
-                // 非导航中：统一显示 OSM 地图
-                else -> osmMapView()
-            }
-            }  // 关闭 AMAP_PROJECTION else 分支
-            }  // 关闭 isCameraFullscreen else 分支
+            osmMapView()
         }  // 关闭 mapZoneContent Box
 
-        // ===== 横屏布局：左4 : 中12 : 右4 三栏布局 =====
+        // ===== 上下布局：顶部地图 + 底部控制栏 =====
         val cruiseSetSpeed = try { carrotManFields.vCruiseKph.toInt() } catch (_: Exception) { 0 }
-        val wsClient = core.carrotWsClient
-        val wsVehicleData = wsClient?.vehicleData?.collectAsState()?.value
-        val wsDeviceStatus = wsClient?.deviceStatus?.collectAsState()?.value
-        Row(modifier = Modifier.fillMaxSize()) {
-            // 左侧（4份）：HomeControlPanel
-            HomeControlPanel(
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 顶部：地图（占据主要空间）
+            Box(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(4f),
-                navMode = navMode,
-                onModeChange = onModeChange,
-                carrotManFields = carrotManFields,
-                userType = userType,
-                cruiseSetSpeed = cruiseSetSpeed,
-                carCruiseSpeed = try { carrotManFields.carcruiseSpeed.toInt() } catch (_: Exception) { 0 },
-                carrotParamClient = core.getCarrotParamClientSafely(),
-                homeAddressSet = homeAddressSet,
-                companyAddressSet = companyAddressSet,
-                commaConnectionState = commaConnectionState,
-                onShowAdvancedDialog = { showAdvancedDialog = true },
-                onPageChange = onPageChange,
-                onSearchClick = { searchShowTrigger++ },
-                onHomeNavClick = { homeNavTrigger++ },
-                onHomeNavLongClick = { homeNavLongTrigger++ },
-                onCompanyNavClick = { companyNavTrigger++ },
-                onCompanyNavLongClick = { companyNavLongTrigger++ },
-                vehicleData = wsVehicleData,
-                deviceStatus = wsDeviceStatus,
-                onLanePanelClick = { show7706JsonDebug = true },
-            )
-                // 中央（12份）：地图
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .weight(12f)
-                ) { mapZoneContent() }
-                // 右侧（4份）：摄像头 + 底部按钮
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .weight(4f)
-                        .background(Surface800)
-                        .padding(horizontal = 4.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // 自动连接摄像头（数据连接成功后，仅触发一次）
-                    var cameraLaunched by remember { mutableStateOf(false) }
-                    LaunchedEffect(wsClient?.connectionState?.collectAsState()?.value) {
-                        if (cameraLaunched) return@LaunchedEffect
-                        val state = wsClient?.connectionState?.value
-                        if (state == com.example.navipilot.data.ConnectionState.CONNECTED) {
-                            val ip = core.networkManager.getCurrentDeviceIP()
-                            if (ip != null && ip.isNotEmpty()) {
-                                wsClient?.connectCamera(ip)
-                                cameraLaunched = true
-                            }
-                        }
-                    }
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) { mapZoneContent() }
 
-                    // ===== 连接状态（hoisted，供下方多处复用）=====
-                    val connStateVal = wsClient?.connectionState?.collectAsState()
-                    val isConn = connStateVal?.value == com.example.navipilot.data.ConnectionState.CONNECTED
-
-                    // ===== 实时摄像头画面（点击切换全屏）=====
-                    val cameraFrame = wsClient?.cameraFrame?.collectAsState()
-                    val camData = cameraFrame?.value
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Surface800.copy(alpha = 0.85f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(90.dp)
-                            .clickable { isCameraFullscreen = !isCameraFullscreen }
-                    ) {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            if (camData != null && camData.payload.isNotEmpty()) {
-                                // 有帧数据：显示实时画面
-                                com.example.navipilot.ui.components.CameraPreview(
-                                    frameBytes = camData.payload,
-                                    width = camData.width,
-                                    height = camData.height,
-                                    isKeyFrame = camData.keyFrame,
-                                    modifier = Modifier.fillMaxSize(),
-                                    wsClient = wsClient
-                                )
-                                // 分辨率叠加层（左上角）
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.TopStart)
-                                        .padding(3.dp)
-                                        .background(Color(0x80000000), RoundedCornerShape(4.dp))
-                                        .padding(horizontal = 4.dp, vertical = 1.dp)
-                                ) {
-                                    Text(
-                                        "${camData.width}×${camData.height}",
-                                        fontSize = 7.sp, color = Color.White
-                                    )
-                                }
-                            } else {
-                                // 无帧数据：显示待命/占位（使用 hoisted connectionState）
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (isConn) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text("📷", fontSize = 20.sp)
-                                            Text(localized("等待画面...", "Waiting..."), fontSize = 9.sp, color = Color(0xFF64748B))
-                                            Text(localized("点击全屏", "Tap for fullscreen"), fontSize = 7.sp, color = Color(0xFF475569))
-                                        }
-                                    } else {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text("📹", fontSize = 20.sp)
-                                            Text(localized("实时画面", "Live Camera"), fontSize = 9.sp, color = Color(0xFF64748B))
-                                            Text(localized("未连接", "Disconnected"), fontSize = 8.sp, color = Color(0xFF475569))
-                                        }
-                                    }
-                                }
-                            }
-                            // 全屏模式指示
-                            if (isCameraFullscreen) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color(0x80000000)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        "⏺ ${localized("全屏中·点击退出", "Fullscreen·Tap exit")}",
-                                        fontSize = 8.sp, color = Color.White
-                                    )
-                                }
-                            } else {
-                                Box(
-                                    modifier = Modifier.align(Alignment.TopEnd).padding(2.dp)
-                                        .background(Color(0x80000000), shape = RoundedCornerShape(4.dp))
-                                        .padding(horizontal = 4.dp, vertical = 1.dp)
-                                ) {
-                                    Text("⛶", fontSize = 8.sp, color = Color.White)
-                                }
-                            }
-                        }
+            // 底部：控制栏（横向平铺）
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Surface800)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 蓝圈：当前车速，点击启动九宫格
+                HomePanelSpeedRing(
+                    modifier = Modifier,
+                    value = carrotManFields.vEgoKph.toInt(),
+                    color = Color(0xFF3B82F6),
+                    onClick = { showAdvancedDialog = true }
+                )
+                // 绿圈：设定巡航速度，点击打开7000 Web
+                HomePanelSpeedRing(
+                    modifier = Modifier,
+                    value = cruiseSetSpeed,
+                    color = Color(0xFF22C55E),
+                    onClick = {
+                        val ip = core.networkManager.getCurrentDeviceIP() ?: return@HomePanelSpeedRing
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("http://$ip:7000"))
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        mapContext.startActivity(intent)
                     }
-
-                    // ===== 搜索/家/公司 三个功能按钮（视频画面下方）=====
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                            HomeControlPanelCircleIcon(
-                                modifier = Modifier,
-                                background = Color(0xFF10B981).copy(alpha = 0.9f),
-                                icon = Icons.Default.Search,
-                                contentDescription = localized("搜索", "Search"),
-                                onClick = { searchShowTrigger++ }
-                            )
-                            HomeControlPanelEmojiAddress(
-                                modifier = Modifier,
-                                emoji = "🏠",
-                                accessibilityLabel = localized("家", "Home"),
-                                addressSet = homeAddressSet,
-                                onShortClick = { homeNavTrigger++ },
-                                onLongClick = { homeNavLongTrigger++ }
-                            )
-                            HomeControlPanelEmojiAddress(
-                                modifier = Modifier,
-                                emoji = "🏢",
-                                accessibilityLabel = localized("公司", "Work"),
-                                addressSet = companyAddressSet,
-                                onShortClick = { companyNavTrigger++ },
-                                onLongClick = { companyNavLongTrigger++ }
-                            )
-                    }
-
-                    // ===== 连接状态指示（复用 hoisted isConn）=====
-                    val isTimeout = wsClient?.isDataTimeout?.collectAsState()?.value ?: false
-                    val connColor = when {
-                        !isConn -> Color(0xFFEF4444)
-                        isTimeout -> Color(0xFFFBBF24)
-                        else -> Color(0xFF22C55E)
-                    }
-                    val connText = if (isConn) {
-                        if (isTimeout) "⚠️ 数据超时" else "✅ 已连接"
-                    } else {
-                        "🔴 未连接"
-                    }
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        // 第一行：连接状态
-                        Text(connText, fontSize = 11.sp, color = connColor)
-                        // 第二行：WS 数据新鲜度指示
-                        val freshnessText = when {
-                            !isConn -> "--"
-                            isTimeout -> "⚠ 数据中断"
-                            else -> "📶 数据正常"
-                        }
-                        val freshnessColor = if (isTimeout) Color(0xFFFBBF24) else Color(0xFF64748B)
-                        Text(freshnessText, fontSize = 8.sp, color = freshnessColor)
-                    }
-                    // 赞助商图片（右下角）
-                    androidx.compose.foundation.Image(
-                        painter = androidx.compose.ui.res.painterResource(id = com.example.navipilot.R.drawable.sponsor),
-                        contentDescription = "Sponsor",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                    )
-                }  // 右Column
-            }  // 主Row
+                )
+                // 搜索按钮
+                HomeControlPanelCircleIcon(
+                    modifier = Modifier,
+                    background = Color(0xFF10B981).copy(alpha = 0.9f),
+                    icon = Icons.Default.Search,
+                    contentDescription = localized("搜索", "Search"),
+                    onClick = { searchShowTrigger++ }
+                )
+                // 回家按钮
+                HomeControlPanelEmojiAddress(
+                    modifier = Modifier,
+                    emoji = "🏠",
+                    accessibilityLabel = localized("家", "Home"),
+                    addressSet = homeAddressSet,
+                    onShortClick = { homeNavTrigger++ },
+                    onLongClick = { homeNavLongTrigger++ }
+                )
+                // 公司按钮
+                HomeControlPanelEmojiAddress(
+                    modifier = Modifier,
+                    emoji = "🏢",
+                    accessibilityLabel = localized("公司", "Work"),
+                    addressSet = companyAddressSet,
+                    onShortClick = { companyNavTrigger++ },
+                    onLongClick = { companyNavLongTrigger++ }
+                )
+            }
+        }
 
         // 高阶功能对话框 - 九宫格
         if (showAdvancedDialog) {
@@ -830,12 +490,9 @@ class MainActivityUI(
         }
     }
 
-    /** 根据当前选中的导航源显示不同图标（Material 无厂商 Logo，用语义区分车机/手机/腾讯/OSM） */
+    /** 根据当前选中的导航源显示不同图标 */
     private fun mapSourceButtonIcon(navMode: NavMode): ImageVector = when (navMode) {
         NavMode.AMAP_AUTO -> Icons.Default.DirectionsCar   // 高德车机版
-        NavMode.AMAP_PROJECTION -> Icons.Default.Tv        // 高德画面投射
-        NavMode.TENCENT -> Icons.Default.Navigation             // 腾讯导航
-        NavMode.GOOGLE -> Icons.Default.Explore          // Google 导航
     }
 
     /** 地图源圆形按钮（无底部文字；当前导航源在弹窗中选择） */
@@ -845,12 +502,7 @@ class MainActivityUI(
         navMode: NavMode,
         onClick: () -> Unit
     ) {
-        val mapDesc = localized("选择地图导航", "Choose map provider") + " (" + when (navMode) {
-            NavMode.AMAP_AUTO -> localized("高德", "AMap")
-            NavMode.AMAP_PROJECTION -> localized("投射", "Projection")
-            NavMode.TENCENT -> localized("腾讯", "Tencent")
-            NavMode.GOOGLE -> localized("Google", "Google")
-        } + ")"
+        val mapDesc = localized("高德车机版", "Amap head unit")
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
@@ -899,27 +551,6 @@ class MainActivityUI(
                     NavMode.AMAP_AUTO,
                     localized("高德车机版", "Amap head unit"),
                     localized("与车机版广播联动（推荐）", "Vehicle broadcast integration (recommended)")
-                )
-            )
-            add(
-                RowDef(
-                    NavMode.AMAP_PROJECTION,
-                    localized("高德画面投射", "Amap Projection"),
-                    localized("将高德画面嵌入地图区（需授权）", "Embed Amap screen in map area (need authorization)")
-                )
-            )
-            add(
-                RowDef(
-                    NavMode.TENCENT,
-                    localized("腾讯导航", "Tencent navigation"),
-                    localized("腾讯地图车联", "Tencent Maps integration")
-                )
-            )
-            add(
-                RowDef(
-                    NavMode.GOOGLE,
-                    localized("Google 导航", "Google Navigation"),
-                    localized("Google 地图官方导航", "Google Maps navigation")
                 )
             )
         }
@@ -1151,13 +782,6 @@ class MainActivityUI(
                 onSelect = { mode ->
                     onModeChange(mode)
                     showMapModeDialog = false
-                    // 选择高德画面投射模式时自动启动授权流程
-                    if (mode == NavMode.AMAP_PROJECTION) {
-                        // 1. 先请求 MediaProjection 授权（必须在前台）
-                        core.amapProjectionManager?.requestCapture()
-                        // 2. 授权后再启动高德车机版（由授权回调或用户手动触发）
-                        core.launchAmapAuto()
-                    }
                 }
             )
         }
@@ -1362,16 +986,6 @@ class MainActivityUI(
                         }
                     }
                 }
-
-                // 赞助商图片（左侧底部）
-                androidx.compose.foundation.Image(
-                    painter = androidx.compose.ui.res.painterResource(id = com.example.navipilot.R.drawable.paypal),
-                    contentDescription = "Support via PayPal",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                )
 
                 }  // Column 结束
         }
@@ -1939,7 +1553,7 @@ private fun LaneIndicator(
 
                     // 简洁功能列表
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FeatureItem("🗺️", localized("三地图导航", "Triple Nav"), localized("高德车机/腾讯/Google", "Amap/Tencent/Google"))
+                        FeatureItem("🗺️", localized("双地图导航", "Dual Nav"), localized("高德车机+OSM", "Amap Auto+OSM"))
                         FeatureItem("🚗", localized("驾驶辅助", "Driving Assist"), localized("自动变道转弯", "Auto lane change & turn"))
                         FeatureItem("📊", localized("驾驶报告", "Driving Report"), localized("评分与建议", "Score & tips"))
                     }

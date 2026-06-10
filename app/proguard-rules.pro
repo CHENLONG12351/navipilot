@@ -141,60 +141,11 @@
 -dontwarn com.mapbox.**
 
 # ===========================================
-# 腾讯导航SDK + 地图SDK + NTRIP SDK（全部保留）
+# 腾讯导航SDK + 地图SDK + NTRIP SDK（已移除）
 # ===========================================
--keep class com.tencent.** { *; }
--keep interface com.tencent.** { *; }
--keep enum com.tencent.** { *; }
--keepclassmembers class com.tencent.** { *; }
--keepclasseswithmembers class com.tencent.** { *; }
--dontwarn com.tencent.**
--dontnote com.tencent.**
-
--keep class com.qq.taf.jce.** { *; }
--dontwarn com.qq.taf.jce.**
-
-# 🚨 关键修复：强制保留腾讯导航 SDK 的所有 R 类及资源 ID
-# 解决 NoSuchFieldError: navix_info_view_normal_bg 崩溃问题
--keep class com.tencent.navix.publish.R { *; }
--keep class com.tencent.navix.publish.R$* { *; }
--keepclassmembers class com.tencent.navix.publish.R$* {
-    public static <fields>;
-}
--keep class com.tencent.tencentmap.mapsdk.maps.R { *; }
--keep class com.tencent.tencentmap.mapsdk.maps.R$* { *; }
--keepclassmembers class com.tencent.tencentmap.mapsdk.maps.R$* {
-    public static <fields>;
-}
-
-# 保留腾讯导航SDK自定义View的所有构造函数（防止XML布局inflate失败）
--keep public class * extends android.view.View {
-    public <init>(android.content.Context);
-    public <init>(android.content.Context, android.util.AttributeSet);
-    public <init>(android.content.Context, android.util.AttributeSet, int);
-}
--keep public class * extends android.view.ViewGroup {
-    public <init>(android.content.Context);
-    public <init>(android.content.Context, android.util.AttributeSet);
-    public <init>(android.content.Context, android.util.AttributeSet, int);
-}
-
-# 腾讯SDK的内部类和枚举（反射调用需要）
--keepattributes InnerClasses,EnclosingMethod
--keep class com.tencent.navix.api.model.SimulatorConfig { *; }
--keep class com.tencent.navix.api.model.SimulatorConfig$* { *; }
--keep class com.tencent.navix.api.model.NavGpsLocation { *; }
--keep class com.tencent.navix.api.model.NavDayNightMode { *; }
--keep class com.tencent.navix.api.config.RouteElementConfig { *; }
--keep class com.tencent.navix.api.config.RouteElementConfig$* { *; }
-# 🔧 修复：移除 MapGestureListener keep 规则（已从代码中删除，不再使用）
-# -keep class com.tencent.navix.api.layer.MapGestureListener { *; }
--keep class com.tencent.tencentmap.mapsdk.maps.model.LatLng { *; }
--keep class com.tencent.tencentmap.mapsdk.maps.CameraUpdate { *; }
--keep class com.tencent.tencentmap.mapsdk.maps.CameraUpdateFactory { *; }
 
 # ===========================================
-# Google Material（腾讯导航SDK布局依赖）
+# Google Material
 # ===========================================
 -keep class com.google.android.material.** { *; }
 -dontwarn com.google.android.material.**
@@ -255,26 +206,6 @@
 
 # 保留 WebRTC 相关自定义类（JNI 回调）
 -keep class com.example.navipilot.webrtc.** { *; }
-
-# 保留 TencentNavPage 相关（大量反射调用腾讯SDK）
--keep class com.example.navipilot.ui.components.TencentNavPage** { *; }
--keepclassmembers class com.example.navipilot.ui.components.TencentNavPage** { *; }
--keep class com.example.navipilot.ui.components.TencentNavWidgets** { *; }
--keep class com.example.navipilot.navigation.TencentNavDataBridge { *; }
--keepclassmembers class com.example.navipilot.navigation.TencentNavDataBridge { *; }
--keep class com.example.navipilot.navigation.TencentNtripProvider { *; }
--keep class com.example.navipilot.navigation.TencentRouteProvider { *; }
-
-# 保留 TencentNavPage 中的所有 Composable 函数和 lambda
--keepclassmembers class com.example.navipilot.ui.components.TencentNavPageKt {
-    *** TencentNavPage(...);
-}
-
-# 保留 TencentNavPage 中使用的 remember/LaunchedEffect 等 Compose API
--keep class kotlin.jvm.internal.Lambda { *; }
--keepclassmembers class * extends kotlin.jvm.internal.Lambda {
-    public synthetic <methods>;
-}
 
 # 保留 OsmMapView（MapLibre 回调）
 -keep class com.example.navipilot.ui.components.OsmMapView** { *; }
@@ -361,24 +292,7 @@
 -ignorewarnings
 -dontnote
 
-# ============================================================
-# 高德地图 SDK（AMap3DMap_11.1.200_AMapNavi_11.1.200_AMapSearch_9.7.4_AMapLocation_11.1.200_20260421.jar）
-# 警告：R8 优化资源压缩时遇到 final R class ids 会导致反射失效和资源丢失
-# 解决：禁用该 JAR 的 optimized resource shrinking，保留所有字段和方法
-# ============================================================
--dontwarn com.amap.api.navi.R$**
--dontwarn com.amap.api.map3d.R$**
--dontwarn com.amap.api.location.R$**
--dontwarn com.amap.api.search.R$**
--keep class com.amap.api.navi.R$** { *; }
--keep class com.amap.api.map3d.R$** { *; }
--keep class com.amap.api.location.R$** { *; }
--keep class com.amap.api.search.R$** { *; }
--keep class com.amap.api.navi.R$string { *; }
--keep class com.amap.api.navi.R$anim { *; }
--keep class com.amap.api.navi.R$attr { *; }
--keep class com.amap.api.map3d.R$attr { *; }
--keep class com.amap.api.location.R$string { *; }
+
 
 # ============================================================
 # Google Places API（防止 R8 StackOverflowError）

@@ -18,7 +18,21 @@
       "Bash(git push *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(git checkout *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(rm -f app/src/main/java/com/example/navipilot/ui/components/CameraPreview.kt)",
+      "Bash(rm -f app/src/main/java/com/example/navipilot/FloatWindowReaderService.kt)",
+      "Bash(rm -rf app/src/main/java/com/example/navipilot/navigation/)",
+      "Bash(rm -f app/src/main/res/drawable/navistate_*.png)",
+      "Bash(rm -f app/src/main/res/drawable/global_image_*.png)",
+      "Bash(rm -f app/src/main/res/drawable/landfront_*.png)",
+      "Bash(rm -f app/src/main/res/drawable/landback_*.png)",
+      "Bash(rm -f app/src/main/res/drawable/nav_*.xml)",
+      "Bash(rm -f app/src/main/res/drawable/edog_*.png)",
+      "Bash(rm -f app/src/main/res/drawable/custtexture*.png)",
+      "Bash(rm -f app/src/main/res/drawable/car*.png)",
+      "Bash(rm -f app/src/main/res/drawable/lane*.png)"
     ]
   },
   "disabledMcpjsonServers": [

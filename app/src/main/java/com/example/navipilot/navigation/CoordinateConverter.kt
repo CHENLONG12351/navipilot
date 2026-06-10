@@ -134,15 +134,16 @@ object CoordinateConverter {
     }
     
     /**
-     * GeoCoordinate 扩展函数
+     * 对一对经纬度应用 WGS-84 → GCJ-02 转换
      */
-    fun GeoCoordinate.toGcj02(): GeoCoordinate {
-        val (lat, lon) = wgs84ToGcj02(this.latitude, this.longitude)
-        return GeoCoordinate(lat, lon)
+    fun Pair<Double, Double>.toGcj02(): Pair<Double, Double> {
+        return wgs84ToGcj02(this.first, this.second)
     }
-    
-    fun GeoCoordinate.toWgs84(): GeoCoordinate {
-        val (lat, lon) = gcj02ToWgs84(this.latitude, this.longitude)
-        return GeoCoordinate(lat, lon)
+
+    /**
+     * 对一对经纬度应用 GCJ-02 → WGS-84 转换
+     */
+    fun Pair<Double, Double>.toWgs84(): Pair<Double, Double> {
+        return gcj02ToWgs84(this.first, this.second)
     }
 }

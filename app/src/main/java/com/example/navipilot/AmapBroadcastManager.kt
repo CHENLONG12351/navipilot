@@ -279,16 +279,6 @@ class AmapBroadcastManager(
      */
     private fun processBroadcastData(intent: Intent, keyType: Int) {
         try {
-            // 🆕 三模互斥：腾讯导航模式下，跳过 AMAP 数据写入 CarrotManFields
-            // 广播接收器仍然运行（用于检测 AMAP 可用性），但不覆盖导航数据
-            if (activeNavMode?.value == "TENCENT" ||
-                activeNavMode?.value == "AMAP_MOBILE" ||
-                activeNavMode?.value == "GOOGLE"
-            ) {
-                Log.v(TAG, "🚫 ${activeNavMode?.value} 模式下跳过车机高德广播写入 (KEY_TYPE: $keyType)")
-                return
-            }
-            
             // 🔧 解析基础广播数据
             val broadcastData = parseBroadcastData(intent)
             

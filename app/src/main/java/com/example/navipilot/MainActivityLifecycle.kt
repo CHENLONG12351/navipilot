@@ -18,8 +18,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
-import com.example.navipilot.scoring.DrivingDataCollector
-
 /**
  * MainActivity生命周期管理类
  * 负责Activity生命周期管理、初始化流程、自检查等
@@ -763,20 +761,8 @@ class MainActivityLifecycle(
                 }
                 delay(50)
                 
-                // 13.5. 初始化驾驶评分数据采集器
-                updateSelfCheckStatusAsync("驾驶评分系统", "正在初始化...", false)
-                try {
-                    core.drivingDataCollector = DrivingDataCollector(context = activity)
-                    
-                    // 启动onroad状态监听
-                    startOnroadMonitoring()
-                    
-                    updateSelfCheckStatusAsync("驾驶评分系统", "初始化完成", true)
-                    Log.i(TAG, "✅ 驾驶评分系统初始化完成")
-                } catch (e: Exception) {
-                    Log.e(TAG, "❌ 驾驶评分系统初始化失败: ${e.message}", e)
-                    updateSelfCheckStatusAsync("驾驶评分系统", "初始化失败: ${e.message}", false)
-                }
+                // 13.5. [已移除] 驾驶评分数据采集器（模块暂未恢复）
+                updateSelfCheckStatusAsync("驾驶评分系统", "模块暂未加载", false)
                 delay(50)
 
                 // 14. 设置UI界面（后台线程）
@@ -1005,99 +991,4 @@ class MainActivityLifecycle(
     
     // ===============================
     // 驾驶评分系统监听
-    // ===============================
-    
-    private fun startOnroadMonitoring() {
-        lifecycleScope.launch {
-            var wasCollecting = false
-            var lastSpeed = 0f
-            var lastUpdateTime = System.currentTimeMillis()
-            
-            while (true) {
-                try {
-                    val carrotManFields = core.carrotManFields.value
-                    val isConnected = core.networkStatus.value.startsWith("✅") ||
-                                     core.networkStatus.value.contains("已连接") || 
-                                     core.networkStatus.value.contains("Connected")
-                    val isOnroad = carrotManFields.isOnroad
-                    
-                    // 判断是否应该采集数据
-                    val shouldCollect = isConnected && isOnroad
-                    
-                    if (shouldCollect && !wasCollecting) {
-                        // 开始采集
-                        core.drivingDataCollector?.startCollecting()
-                        Log.i(TAG, "📊 驾驶评分开始采集 (connected=$isConnected, onroad=$isOnroad)")
-                        wasCollecting = true
-                        val deviceSpd = carrotManFields.vEgoKph.toFloat()
-                        val phoneSpd = carrotManFields.gps_speed.toFloat()
-                        lastSpeed = if (deviceSpd > 0) deviceSpd else phoneSpd
-                        lastUpdateTime = System.currentTimeMillis()
-                    } else if (!shouldCollect && wasCollecting) {
-                        // 停止采集
-                        withContext(Dispatchers.IO) {
-                            core.drivingDataCollector?.stopCollecting()
-                        }
-                        Log.i(TAG, "📊 驾驶评分停止采集 (connected=$isConnected, onroad=$isOnroad)")
-                        wasCollecting = false
-                    }
-                    
-                    // 如果正在采集，更新数据
-                    if (wasCollecting) {
-                        val currentTime = System.currentTimeMillis()
-                        val deltaTime = (currentTime - lastUpdateTime) / 1000f  // 秒
-                        
-                        // 速度来源：优先使用设备车速，其次使用手机GPS速度
-                        val deviceSpeed = carrotManFields.vEgoKph.toFloat()
-                        val phoneGpsSpeed = carrotManFields.gps_speed.toFloat() // km/h from phone GPS
-                        val currentSpeed = if (deviceSpeed > 0) deviceSpeed else phoneGpsSpeed
-                        
-                        // 计算加速度 (m/s²)
-                        val acceleration = if (deltaTime > 0.1f) {
-                            ((currentSpeed - lastSpeed) / 3.6f) / deltaTime
-                        } else 0f
-                        
-                        // 计算距离增量 (km)，使用平均速度更准确
-                        val avgSpeed = (currentSpeed + lastSpeed) / 2f
-                        val distanceDelta = if (deltaTime > 0.1f && avgSpeed > 1f) {
-                            (avgSpeed / 3600f) * deltaTime
-                        } else 0f
-                        
-                        // 判断异常驾驶行为
-                        val isHardAcceleration = acceleration > 3.0f  // 急加速阈值
-                        val isHardBraking = acceleration < -4.0f      // 急刹车阈值
-                        val isSharpTurn = false  // TODO: 需要陀螺仪数据
-                        
-                        withContext(Dispatchers.IO) {
-                            core.drivingDataCollector?.updateData(
-                                speed = currentSpeed,
-                                acceleration = acceleration,
-                                steeringAngle = 0f,
-                                isHardBraking = isHardBraking,
-                                isHardAcceleration = isHardAcceleration,
-                                isSharpTurn = isSharpTurn,
-                                nooActive = carrotManFields.active,
-                                distanceDelta = distanceDelta,
-                                cruiseActive = carrotManFields.vCruiseKph > 0,
-                                roadLimitSpeed = carrotManFields.nRoadLimitSpeed,
-                                tbtDist = carrotManFields.nTBTDist,
-                                roadType = carrotManFields.roadType,
-                                roadName = carrotManFields.szPosRoadName,
-                                leadDistance = 0f // TODO: 从xiaogeData获取前车距离
-                            )
-                        }
-                        
-                        lastSpeed = currentSpeed
-                        lastUpdateTime = currentTime
-                    }
-                    
-                } catch (e: Exception) {
-                    Log.e(TAG, "❌ onroad监听异常: ${e.message}", e)
-                }
-                
-                // 每秒检查一次
-                delay(1000)
-            }
-        }
-    }
 }

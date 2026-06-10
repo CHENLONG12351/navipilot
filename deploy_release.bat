@@ -1,102 +1,62 @@
 @echo off
+chcp 65001 >nul
 echo ========================================
-echo Navipilot 发布部署脚本
+echo    Navipilot Release 构建脚本
 echo ========================================
-
-REM 设置变量
-set PROJECT_DIR=C:\Users\zhudo\AndroidStudioProjects\Navipilot
-set APK_NAME=Navipilot-Release-v1.0.0.apk
-set KEYSTORE_PATH=%PROJECT_DIR%\release.keystore
-set KEYSTORE_ALIAS=navipilot
-
 echo.
-echo 1. 清理项目...
-cd /d "%PROJECT_DIR%"
+
+set PROJECT_DIR=%~dp0
+set APK_DIR=%PROJECT_DIR%app\build\outputs\apk\release
+set VERSION=v260530
+
+echo [1/4] 清理项目...
 call gradlew clean
 
 echo.
-echo 2. 运行测试...
+echo [2/4] 运行单元测试...
 call gradlew testDebugUnitTest
 if %ERRORLEVEL% neq 0 (
-    echo 测试失败，停止部署
+    echo 单元测试失败
     pause
     exit /b 1
 )
 
 echo.
-echo 3. 编译Release版本...
+echo [3/4] 构建 Release 版本...
 call gradlew assembleRelease
 if %ERRORLEVEL% neq 0 (
-    echo 编译失败，停止部署
+    echo 构建失败
     pause
     exit /b 1
 )
 
 echo.
-echo 4. 签名APK...
-if exist "%KEYSTORE_PATH%" (
-    jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore "%KEYSTORE_PATH%" app\build\outputs\apk\release\app-release-unsigned.apk %KEYSTORE_ALIAS%
-    if %ERRORLEVEL% neq 0 (
-        echo 签名失败，停止部署
-        pause
-        exit /b 1
-    )
-) else (
-    echo 签名文件不存在，跳过签名步骤
-)
+echo [4/4] 整理输出文件...
+if not exist "%PROJECT_DIR%release" mkdir "%PROJECT_DIR%release"
 
-echo.
-echo 5. 优化APK...
-if exist "app\build\outputs\apk\release\app-release-unsigned.apk" (
-    zipalign -v 4 app\build\outputs\apk\release\app-release-unsigned.apk app\build\outputs\apk\release\%APK_NAME%
-    if %ERRORLEVEL% neq 0 (
-        echo APK优化失败
-    )
+:: 查找最新 APK 文件
+for /f "delims=" %%F in ('dir /b /o-d "%APK_DIR%\*.apk" 2^>nul') do (
+    set "LATEST_APK=%%F"
+    goto :found
 )
-
-echo.
-echo 6. 生成发布包...
-if exist "app\build\outputs\apk\release\%APK_NAME%" (
-    echo 创建发布目录...
-    if not exist "release" mkdir release
-    
-    echo 复制APK到发布目录...
-    copy "app\build\outputs\apk\release\%APK_NAME%" "release\"
-    
-    echo 复制文档...
-    if exist "USER_TESTING_GUIDE.md" copy "USER_TESTING_GUIDE.md" "release\"
-    if exist "README.md" copy "README.md" "release\"
-    
-    echo 生成发布信息...
-    echo Navipilot Release v1.0.0 > release\RELEASE_NOTES.txt
-    echo 构建时间: %DATE% %TIME% >> release\RELEASE_NOTES.txt
-    echo 构建环境: Windows 10 >> release\RELEASE_NOTES.txt
-    echo. >> release\RELEASE_NOTES.txt
-    echo 主要改进: >> release\RELEASE_NOTES.txt
-    echo - 添加了完整的错误处理机制 >> release\RELEASE_NOTES.txt
-    echo - 重构了MainActivity，分离职责 >> release\RELEASE_NOTES.txt
-    echo - 添加了性能监控和内存优化 >> release\RELEASE_NOTES.txt
-    echo - 完善了单元测试和集成测试 >> release\RELEASE_NOTES.txt
-    
+:found
+if defined LATEST_APK (
+    copy "%APK_DIR%\%LATEST_APK%" "%PROJECT_DIR%release\Navipilot-%VERSION%.apk" >nul
+    for %%F in ("%PROJECT_DIR%release\Navipilot-%VERSION%.apk") do set "apk_size=%%~zF"
+    set /a apk_size_mb=%apk_size% / 1048576
     echo.
     echo ========================================
-    echo 部署完成！
+    echo    构建完成
     echo ========================================
-    echo APK文件: release\%APK_NAME%
-    echo 发布目录: %PROJECT_DIR%\release
     echo.
-    echo 下一步：
-    echo 1. 测试APK安装和运行
-    echo 2. 按照USER_TESTING_GUIDE.md进行测试
-    echo 3. 收集用户反馈
-    echo 4. 发布到应用商店
+    echo APK: release\Navipilot-%VERSION%.apk
+    echo 大小: %apk_size_mb% MB
     echo.
 ) else (
-    echo APK文件不存在，部署失败
+    echo 未找到 APK 文件
     pause
     exit /b 1
 )
 
-echo.
 echo 按任意键退出...
-pause > nul
+pause >nul

@@ -82,27 +82,6 @@
         android:usesCleartextTraffic="true"
         tools:targetApi="31">
 
-        <!-- 腾讯地图SDK Key -->
-        <meta-data
-            android:name="TencentMapSDK"
-            android:value="OSYBZ-XNXCV-KKGPD-5BSPY-FSFWH-FNFHU" />
-
-        <!-- 高德 Key：3dmap/导航 SDK 读取 com.amap.api.v2.apikey（与官方 NaviDemo 一致）；保留 autonavi 项以兼容旧代码 -->
-        <meta-data
-            android:name="com.amap.api.v2.apikey"
-            android:value="0baffde609d29faa1258396d634594f8" />
-        <meta-data
-            android:name="com.autonavi.amapapi.API_KEY"
-            android:value="0baffde609d29faa1258396d634594f8" />
-
-        <!-- 高德定位融合服务（合并 JAR 内含定位模块，缺此 Service 时部分鉴权/网络层异常） -->
-        <service android:name="com.amap.api.location.APSService" />
-
-        <!-- Google Maps API Key（用于 Navigation SDK） -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="${MAPS_API_KEY}" />
-
         <!-- 禁用OAID获取，避免非OPPO设备上 com.heytap.openid 包找不到的异常 -->
         <meta-data
             android:name="com.heytap.openid.disable"
@@ -112,7 +91,7 @@
             android:exported="true"
             android:theme="@style/Theme.Navipilot"
             android:launchMode="singleTask"
-            android:screenOrientation="sensorLandscape"
+            android:screenOrientation="fullSensor"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:excludeFromRecents="false">
             <intent-filter>
@@ -131,31 +110,6 @@
             android:exported="false"
             android:foregroundServiceType="location"
             android:stopWithTask="false">
-        </service>
-
-        <!-- MediaProjection 前台服务 - 高德车机版画面投射 -->
-        <service
-            android:name=".AmapProjectionService"
-            android:foregroundServiceType="mediaProjection"
-            android:exported="false" />
-
-        <!-- Google 导航 NavInfo 接收服务（用于获取 TBT 转弯数据） -->
-        <service
-            android:name=".navigation.GoogleNavInfoService"
-            android:exported="false" />
-
-        <!-- 魔行星红绿灯悬浮窗读取服务（无障碍） -->
-        <service
-            android:name=".FloatWindowReaderService"
-            android:exported="true"
-            android:label="悬浮窗读取服务"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
         </service>
 
         <receiver

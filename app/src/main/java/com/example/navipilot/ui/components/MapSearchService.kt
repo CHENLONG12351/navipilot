@@ -2,12 +2,6 @@ package com.example.navipilot.ui.components
 
 import android.content.Context
 import android.util.Log
-import com.amap.api.services.core.AMapException
-import com.amap.api.services.core.LatLonPoint
-import com.amap.api.services.help.Inputtips
-import com.amap.api.services.help.InputtipsQuery
-import com.amap.api.services.help.Tip
-import com.example.navipilot.BuildConfig
 import java.util.Locale
 import java.util.TreeMap
 import kotlinx.coroutines.Dispatchers
@@ -27,10 +21,11 @@ data class SearchResult(val name: String, val address: String, val lon: Double, 
 /** 搜索响应（含使用的服务名称） */
 data class SearchResponse(val results: List<SearchResult>, val serviceName: String)
 
-// ==================== 腾讯地图配置 ====================
-
-private const val TENCENT_MAP_KEY = "2R4BZ-TJTC5-SWOIX-IKYMY-KVGE3-QVB3U"
-private const val TENCENT_MAP_SK = "AXDG3pLv5fVCxTbvWwwXVHsd1Ch4CLfU"
+/** 可手动选择的搜索模式 */
+enum class SearchProvider(val label: String) {
+    AUTO("默认"),
+    GAODE("高德")
+}
 
 // ==================== 工具函数 ====================
 
@@ -39,15 +34,7 @@ fun isInChina(lat: Double, lon: Double): Boolean {
     return lat in 3.86..53.55 && lon in 73.66..135.05
 }
 
-/** 计算腾讯地图 API 签名（GET 方法）：md5(requestPath + "?" + sortedParams + SK） */
-private fun calcTencentSig(path: String, params: Map<String, String>): String {
-    val sortedQuery = params.toSortedMap().entries.joinToString("&") { "${it.key}=${it.value}" }
-    val raw = "$path?$sortedQuery$TENCENT_MAP_SK"
-    val md5 = java.security.MessageDigest.getInstance("MD5")
-    return md5.digest(raw.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
-}
-
-/** GCJ-02 转 WGS-84（腾讯/高德坐标 → OSM 坐标） */
+/** GCJ-02 转 WGS-84（高德坐标 → WGS-84） */
 fun gcj02ToWgs84(gcjLat: Double, gcjLon: Double): Pair<Double, Double> {
     val a = 6378245.0
     val ee = 0.00669342162296594323
@@ -94,143 +81,36 @@ private val searchHttpClient = OkHttpClient.Builder()
     .writeTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
     .build()
 
-/** 腾讯地图关键词搜索（Suggestion API，返回 WGS-84 坐标，含 sig 签名） */
-private suspend fun searchPlacesTencent(query: String, lat: Double, lon: Double): List<SearchResult> =
-    withContext(Dispatchers.IO) {
-        val results = mutableListOf<SearchResult>()
-        try {
-            val path = "/ws/place/v1/suggestion/"
-            val locationStr = "$lat,$lon"
-            val params = mapOf(
-                "keyword" to query,
-                "location" to locationStr,
-                "policy" to "11",
-                "page_size" to "8",
-                "key" to TENCENT_MAP_KEY
-            )
-            val sig = calcTencentSig(path, params)
-            val encodedKeyword = java.net.URLEncoder.encode(query, "UTF-8")
-            val url = "https://apis.map.qq.com$path" +
-                    "?keyword=$encodedKeyword" +
-                    "&location=$locationStr" +
-                    "&policy=11" +
-                    "&page_size=8" +
-                    "&key=$TENCENT_MAP_KEY" +
-                    "&sig=$sig"
-            Log.d(TAG, "腾讯地图搜索: keyword=$query")
-            val response = searchHttpClient.newCall(Request.Builder().url(url).build()).execute()
-            val body = response.body?.string()
-            if (body != null) {
-                val json = JSONObject(body)
-                val status = json.optInt("status", -1)
-                if (status == 0) {
-                    val data = json.optJSONArray("data")
-                    if (data != null) {
-                        for (i in 0 until data.length()) {
-                            val item = data.getJSONObject(i)
-                            val title = item.optString("title", "")
-                            val address = item.optString("address", "")
-                            val loc = item.optJSONObject("location")
-                            if (loc != null && title.isNotEmpty()) {
-                                // 腾讯 Suggestion API 返回 WGS-84 坐标，无需转换
-                                val wgsLat = loc.optDouble("lat", 0.0)
-                                val wgsLon = loc.optDouble("lng", 0.0)
-                                if (wgsLat != 0.0 && wgsLon != 0.0) {
-                                    results.add(SearchResult(title, address, wgsLon, wgsLat))
-                                }
-                            }
-                        }
-                    }
-                    Log.i(TAG, "腾讯地图搜索成功: ${results.size}条结果")
-                } else {
-                    Log.w(TAG, "腾讯地图搜索失败: status=$status, msg=${json.optString("message")}")
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "腾讯地图搜索异常: ${e.message}")
-        }
-        results
-    }
-
-/**
- * 高德 Android 搜索 SDK「输入提示」（使用 Manifest 中 com.amap.api.v2.apikey，避免 JS/Web Key 调 REST 报 10009）。
- * 同步接口在 IO 线程执行；坐标 GCJ-02 → WGS-84。
- */
-private suspend fun searchPlacesAmapSdk(
-    context: Context,
-    query: String,
-    biasGcjLat: Double?,
-    biasGcjLon: Double?,
-): List<SearchResult> = withContext(Dispatchers.IO) {
-    val results = mutableListOf<SearchResult>()
-    try {
-        val inputQuery = InputtipsQuery(query, "")
-        inputQuery.setCityLimit(false)
-        if (biasGcjLat != null && biasGcjLon != null &&
-            biasGcjLat != 0.0 && biasGcjLon != 0.0
-        ) {
-            // LatLonPoint(纬度, 经度)
-            inputQuery.setLocation(LatLonPoint(biasGcjLat, biasGcjLon))
-        }
-        val inputtips = Inputtips(context.applicationContext, inputQuery)
-        Log.d(TAG, "高德地图搜索(SDK): keyword=$query")
-        val tips: List<Tip> = inputtips.requestInputtips()
-        for (tip in tips) {
-            val title = tip.name?.trim().orEmpty()
-            if (title.isEmpty()) continue
-            val point = tip.point ?: continue
-            val gcjLat = point.latitude
-            val gcjLon = point.longitude
-            if (gcjLat == 0.0 && gcjLon == 0.0) continue
-            val district = tip.district.orEmpty()
-            val addrPart = tip.address.orEmpty()
-            val address = when {
-                addrPart.isNotEmpty() -> addrPart
-                district.isNotEmpty() -> district
-                else -> ""
-            }
-            val (wgsLat, wgsLon) = gcj02ToWgs84(gcjLat, gcjLon)
-            results.add(SearchResult(title, address, wgsLon, wgsLat))
-        }
-        Log.i(TAG, "高德 SDK 搜索成功: ${results.size}条结果")
-    } catch (e: AMapException) {
-        Log.w(TAG, "高德 SDK 输入提示失败: ${e.message}, errorCode=${e.errorCode}")
-    } catch (e: Exception) {
-        Log.w(TAG, "高德 SDK 输入提示异常: ${e.message}")
-    }
-    results
-}
+// 高德 Web 服务 API Key（需在 local.properties 中配置 AMAP_WEB_KEY / AMAP_WEB_SECRET，不配置则 REST 搜索不可用）
+private const val AMAP_WEB_KEY = ""
+private const val AMAP_WEB_SECRET = ""
 
 /** 高德 REST Key 是否已标记为无效（如 10009 Key 不匹配），后续跳过 REST 调用 */
 private var amapRestKeyInvalid: Boolean = false
 
 /**
  * 高德输入提示 REST API
- *
  * 需要「Web服务」类型 Key；JS API Key 会返回 USERKEY_PLAT_NOMATCH (10009)。
  * 一旦收到 10009 错误，标记该 Key 为无效，后续请求跳过 REST 路径。
  */
-private suspend fun searchPlacesAmapRest(
+private suspend fun searchPlacesAmap(
     query: String,
     biasGcjLat: Double?,
     biasGcjLon: Double?,
 ): List<SearchResult> = withContext(Dispatchers.IO) {
     val results = mutableListOf<SearchResult>()
-    // 🛡️ 如果 Key 已被标记无效，直接跳过
     if (amapRestKeyInvalid) {
-        Log.d(TAG, "高德 REST Key 已标记无效，跳过 REST 兜底")
+        Log.d(TAG, "高德 REST Key 已标记无效，跳过 REST 调用")
         return@withContext results
     }
-    val key = BuildConfig.AMAP_WEB_KEY
-    val secret = BuildConfig.AMAP_WEB_SECRET
-    if (key.isBlank()) {
-        Log.d(TAG, "高德 Web Key 未配置，跳过 REST 兜底")
+    if (AMAP_WEB_KEY.isBlank()) {
+        Log.d(TAG, "高德 Web Key 未配置，跳过 REST 调用")
         return@withContext results
     }
     try {
         val params = TreeMap<String, String>()
         params["keywords"] = query
-        params["key"] = key
+        params["key"] = AMAP_WEB_KEY
         if (biasGcjLat != null && biasGcjLon != null &&
             biasGcjLat != 0.0 && biasGcjLon != 0.0
         ) {
@@ -240,8 +120,8 @@ private suspend fun searchPlacesAmapRest(
         for ((k, v) in params) {
             urlBuilder.addQueryParameter(k, v)
         }
-        if (secret.isNotBlank()) {
-            urlBuilder.addQueryParameter("sig", calcAmapSig(params, secret))
+        if (AMAP_WEB_SECRET.isNotBlank()) {
+            urlBuilder.addQueryParameter("sig", calcAmapSig(params, AMAP_WEB_SECRET))
         }
         val url = urlBuilder.build().toString()
         Log.d(TAG, "高德地图搜索(REST): keyword=$query")
@@ -277,15 +157,9 @@ private suspend fun searchPlacesAmapRest(
                 Log.i(TAG, "高德 REST 搜索成功: ${results.size}条结果")
             } else {
                 val infocode = json.optString("infocode")
-                Log.w(
-                    TAG,
-                    "高德 REST 失败: status=${json.optString("status")}, info=${json.optString("info")}, infocode=$infocode"
-                )
+                Log.w(TAG, "高德 REST 失败: status=${json.optString("status")}, info=${json.optString("info")}, infocode=$infocode")
                 if (infocode == "10009") {
-                    Log.w(
-                        TAG,
-                        "提示：10009=Key 与平台不匹配。App 内已优先用 Android SDK（AndroidManifest 的 apikey）；REST 需单独申请「Web服务」Key。已标记无效，不再重试。"
-                    )
+                    Log.w(TAG, "10009=Key 与平台不匹配。已标记无效，不再重试。")
                     amapRestKeyInvalid = true
                 }
             }
@@ -296,89 +170,13 @@ private suspend fun searchPlacesAmapRest(
     results
 }
 
-/** 高德：优先 Android 搜索 SDK（Manifest Key），失败再尝试 Web REST（可选） */
-private suspend fun searchPlacesAmap(
-    androidContext: Context?,
-    query: String,
-    biasGcjLat: Double?,
-    biasGcjLon: Double?,
-): List<SearchResult> {
-    if (androidContext != null) {
-        val sdk = searchPlacesAmapSdk(androidContext, query, biasGcjLat, biasGcjLon)
-        if (sdk.isNotEmpty()) return sdk
-    }
-    return searchPlacesAmapRest(query, biasGcjLat, biasGcjLon)
-}
-
-/** 谷歌地图 Places API 搜索（海外用，返回 WGS-84 坐标） */
-private suspend fun searchPlacesGoogle(query: String, lat: Double?, lon: Double?): List<SearchResult> =
-    withContext(Dispatchers.IO) {
-        val results = mutableListOf<SearchResult>()
-        val apiKey = BuildConfig.GOOGLE_PLACES_API_KEY
-        if (apiKey.isBlank()) {
-            Log.w(TAG, "Google Places API Key 未配置，跳过谷歌搜索")
-            return@withContext results
-        }
-        try {
-            val urlBuilder = StringBuilder()
-                .append("https://maps.googleapis.com/maps/api/place/textsearch/json")
-                .append("?query=${java.net.URLEncoder.encode(query, "UTF-8")}")
-                .append("&key=$apiKey")
-                .append("&language=zh-CN")
-            if (lat != null && lon != null) {
-                urlBuilder.append("&location=$lat,$lon")
-                urlBuilder.append("&radius=50000")
-            }
-            Log.d(TAG, "谷歌地图搜索: keyword=$query")
-            val body = searchHttpClient.newCall(
-                Request.Builder().url(urlBuilder.toString()).build()
-            ).execute().body?.string()
-            if (body != null) {
-                val json = JSONObject(body)
-                val status = json.optString("status", "")
-                if (status == "OK") {
-                    val allResults = json.optJSONArray("results")
-                    if (allResults != null) {
-                        for (i in 0 until allResults.length()) {
-                            val item = allResults.getJSONObject(i)
-                            val name = item.optString("name", "")
-                            val address = item.optString("formatted_address", "")
-                            val geometry = item.optJSONObject("geometry") ?: continue
-                            val location = geometry.optJSONObject("location") ?: continue
-                            val gLat = location.optDouble("lat", 0.0)
-                            val gLon = location.optDouble("lng", 0.0)
-                            if (name.isNotEmpty() && gLat != 0.0 && gLon != 0.0) {
-                                results.add(SearchResult(name, address, gLon, gLat))
-                            }
-                        }
-                    }
-                    Log.i(TAG, "谷歌地图搜索成功: ${results.size}条结果")
-                } else {
-                    val errMsg = json.optString("error_message", "")
-                    Log.w(TAG, "谷歌地图搜索失败: status=$status, error=$errMsg")
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "谷歌地图搜索异常: ${e.message}")
-        }
-        results
-    }
-
-/** 可手动选择的搜索模式 */
-enum class SearchProvider(val label: String) {
-    AUTO("默认"),
-    GAODE("高德"),
-    TENCENT("腾讯"),
-    GOOGLE("谷歌")
-}
-
 /**
  * 统一搜索入口：
- * 1. 用户显式指定引擎 → 始终直接调用指定引擎
- * 2. AUTO（国内且有定位）→ 高德（Android 搜索 SDK，失败则 REST）→ 腾讯
- * 3. AUTO（海外或无有效 proximity）→ 谷歌 Places API
+ * 1. 用户显式指定引擎 → 直接调用
+ * 2. AUTO（国内且有定位）→ 高德 REST API
+ * 3. AUTO（海外或无定位）→ 返回空结果
  *
- * @param androidContext 用于高德 SDK 输入提示；传 null 时高德仅尝试 REST（易遇 10009）
+ * @param androidContext 保留参数（不再使用）
  */
 suspend fun searchPlaces(
     token: String,
@@ -402,23 +200,10 @@ suspend fun searchPlaces(
                 serviceName = "高德地图"
                 if (proxLat != null && proxLon != null && isInChina(proxLat, proxLon)) {
                     val gcj = com.example.navipilot.navigation.CoordinateConverter.wgs84ToGcj02(proxLat, proxLon)
-                    searchPlacesAmap(androidContext, query, gcj.first, gcj.second)
+                    searchPlacesAmap(query, gcj.first, gcj.second)
                 } else {
-                    searchPlacesAmap(androidContext, query, null, null)
+                    searchPlacesAmap(query, null, null)
                 }
-            }
-            SearchProvider.TENCENT -> {
-                serviceName = "腾讯地图"
-                if (proxLat != null && proxLon != null) {
-                    // 腾讯 Suggestion API 期望 WGS-84 坐标（同 GPS），无需 GCJ-02 转换
-                    searchPlacesTencent(query, proxLat, proxLon)
-                } else {
-                    emptyList()
-                }
-            }
-            SearchProvider.GOOGLE -> {
-                serviceName = "谷歌地图"
-                searchPlacesGoogle(query, proxLat, proxLon)
             }
             SearchProvider.AUTO -> emptyList()
         }
@@ -430,50 +215,24 @@ suspend fun searchPlaces(
     }
 
     // ===== AUTO 模式 =====
-    // 根据系统语言决定搜索策略：中文 → 国内高德/腾讯，非中文 → 统一谷歌搜索
     val isChineseLocale = Locale.getDefault().language.startsWith("zh")
     if (isChineseLocale) {
-        // 中文用户：国内高德优先 → 腾讯兜底，海外谷歌
+        // 中文用户：国内高德搜索，海外无搜索结果
         if (proxLat != null && proxLon != null && isInChina(proxLat, proxLon)) {
             val gcjCoords = com.example.navipilot.navigation.CoordinateConverter.wgs84ToGcj02(proxLat, proxLon)
-            val amapResults = searchPlacesAmap(androidContext, query, gcjCoords.first, gcjCoords.second)
+            val amapResults = searchPlacesAmap(query, gcjCoords.first, gcjCoords.second)
             if (amapResults.isNotEmpty()) {
                 return@withContext SearchResponse(
                     amapResults.distinctBy { "${it.lat.toFloat()},${it.lon.toFloat()}" }.take(8),
                     "高德地图"
                 )
             }
-            Log.w(TAG, "高德地图无结果，尝试腾讯")
-            val tencentResults = searchPlacesTencent(query, proxLat, proxLon)
-            if (tencentResults.isNotEmpty()) {
-                return@withContext SearchResponse(
-                    tencentResults.distinctBy { "${it.lat.toFloat()},${it.lon.toFloat()}" }.take(8),
-                    "腾讯地图"
-                )
-            }
-            Log.w(TAG, "高德、腾讯均无结果")
+            Log.w(TAG, "高德地图无结果")
         } else {
-            Log.d(TAG, "中文用户海外/AUTO 模式，调用谷歌搜索")
-            val googleResults = searchPlacesGoogle(query, proxLat, proxLon)
-            if (googleResults.isNotEmpty()) {
-                return@withContext SearchResponse(
-                    googleResults.distinctBy { "${it.lat.toFloat()},${it.lon.toFloat()}" }.take(8),
-                    "谷歌地图"
-                )
-            }
-            Log.w(TAG, "谷歌搜索无结果")
+            Log.d(TAG, "海外地区无可用搜索服务")
         }
     } else {
-        // 非中文用户：统一使用谷歌搜索
-        Log.d(TAG, "非中文语言环境/AUTO 模式，调用谷歌搜索")
-        val googleResults = searchPlacesGoogle(query, proxLat, proxLon)
-        if (googleResults.isNotEmpty()) {
-            return@withContext SearchResponse(
-                googleResults.distinctBy { "${it.lat.toFloat()},${it.lon.toFloat()}" }.take(8),
-                "谷歌地图"
-            )
-        }
-        Log.w(TAG, "谷歌搜索无结果")
+        Log.d(TAG, "非中文用户，无可用搜索服务")
     }
 
     SearchResponse(emptyList(), "")

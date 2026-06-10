@@ -4,11 +4,10 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 空心三角形（播放图标），浅灰色描边 -->
     <path
-        android:fillColor="#00000000"
-        android:pathData="M 42,32 L 76,54 L 42,76 Z"
-        android:strokeWidth="10"
-        android:strokeColor="#E5E7EB"
-        android:strokeLineJoin="round" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30 L70,65 L54,58 L38,65 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,72 m-8,0 a8,8 0 1,1 16,0 a8,8 0 1,1 -16,0"/>
 </vector>

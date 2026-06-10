@@ -378,12 +378,8 @@ fun OsmMapView(
     isDataCardExpanded: Boolean = true,
     onToggleDataCard: () -> Unit = {},
     onPageChange: (Int) -> Unit = {},
-    /** 腾讯地图源：在主页地图槽内打开嵌入的腾讯导航（不再使用全屏 currentPage==12） */
-    onOpenTencentEmbeddedNav: () -> Unit = {},
     /** 高德手机 SDK：在主页地图槽内打开嵌入导航 */
     onOpenAmapMobileEmbeddedNav: () -> Unit = {},
-    /** Google 导航：在主页地图槽内打开嵌入导航 */
-    onOpenGoogleEmbeddedNav: () -> Unit = {},
     cruiseSetSpeed: Int = 0,
     carCruiseSpeed: Int = 0,
     onBlueRingClick: () -> Unit = {},
@@ -481,30 +477,6 @@ fun OsmMapView(
                     )
                 }
                 onOpenAmapMobileEmbeddedNav()
-                true
-            }
-            "TENCENT" -> {
-                carrotManFieldsState?.let { state ->
-                    state.value = state.value.copy(
-                        goalPosX = destLon,
-                        goalPosY = destLat,
-                        szGoalName = destName,
-                        isNavigating = true
-                    )
-                }
-                onOpenTencentEmbeddedNav()
-                true
-            }
-            "GOOGLE" -> {
-                carrotManFieldsState?.let { state ->
-                    state.value = state.value.copy(
-                        goalPosX = destLon,
-                        goalPosY = destLat,
-                        szGoalName = destName,
-                        isNavigating = true
-                    )
-                }
-                onOpenGoogleEmbeddedNav()
                 true
             }
             else -> false
@@ -974,8 +946,6 @@ fun OsmMapView(
                                         containerColor = when (currentNavMode) {
                                             "AMAP" -> Color(0xFFFF6B00)
                                             "AMAP_MOBILE" -> Color(0xFFFF6B00)
-                                            "TENCENT" -> Color(0xFF10B981)
-                                            "GOOGLE" -> Color(0xFF4285F4)
                                             else -> MaterialTheme.colorScheme.primary
                                         }
                                     ),
@@ -988,8 +958,6 @@ fun OsmMapView(
                                         text = when (currentNavMode) {
                                             "AMAP" -> localized("开始导航（高德车机版）", "Start Navigation (AMap Auto)")
                                             "AMAP_MOBILE" -> localized("开始导航（高德手机版）", "Start Navigation (AMap Mobile)")
-                                            "TENCENT" -> localized("开始导航（腾讯）", "Start Navigation (Tencent)")
-                                            "GOOGLE" -> localized("开始导航（Google）", "Start Navigation (Google)")
                                             else -> localized("开始导航", "Start Navigation")
                                         },
                                         fontSize = 13.sp, fontWeight = FontWeight.Bold
