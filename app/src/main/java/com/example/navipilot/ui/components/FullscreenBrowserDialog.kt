@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.navipilot.CustomIcons
 import com.example.navipilot.ui.utils.localized
 
 @Composable
@@ -47,14 +48,14 @@ fun FullscreenBrowserDialog(onDismiss: () -> Unit, url: String, title: String, f
                         webView?.let { wv -> if (wv.canGoBack()) wv.goBack() else onDismiss() } ?: onDismiss()
                     }) {
                         Icon(
-                            imageVector = if (canGoBack) Icons.AutoMirrored.Filled.ArrowBack else Icons.Default.Close,
+                            imageVector = if (canGoBack) CustomIcons.ArrowBack else Icons.Default.Close,
                             contentDescription = if (canGoBack) localized("返回", "Back") else localized("关闭", "Close"),
                             tint = Color(0xFF1E293B)
                         )
                     }
                     Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1E293B), modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
                     IconButton(onClick = { webView?.let { wv -> if (wv.canGoForward()) wv.goForward() } }, enabled = canGoForward) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = localized("前进", "Forward"), tint = if (canGoForward) Color(0xFF1E293B) else Color(0xFF94A3B8))
+                        Icon(CustomIcons.ArrowForward, contentDescription = localized("前进", "Forward"), tint = if (canGoForward) Color(0xFF1E293B) else Color(0xFF94A3B8))
                     }
                     IconButton(onClick = { webView?.reload() }) {
                         Icon(Icons.Default.Refresh, contentDescription = localized("刷新", "Refresh"), tint = Color(0xFF1E293B))

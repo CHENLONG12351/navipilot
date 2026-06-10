@@ -24,6 +24,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.navipilot.CustomIcons
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -186,7 +191,7 @@ object MainActivityUIComponents {
 
                     // 公司按钮
                     ControlButton(
-                        icon = Icons.Default.Work,
+                        icon = CustomIcons.Work,
                         label = "",
                         color = ButtonCompany,
                         onClick = {
@@ -312,6 +317,8 @@ object MainActivityUIComponents {
         networkManager: NetworkManager, // 添加networkManager参数用于直接发送坐标
         context: android.content.Context
     ) {
+        // 全屏图片查看状态
+        var showFullImage by remember { mutableStateOf(false) }
         // 🆕 通用音频播放函数 - 减少重复代码
         fun playSound(resourceId: Int, soundName: String) {
             try {
@@ -390,12 +397,11 @@ object MainActivityUIComponents {
                                 val buttonNumber = row * 3 + col + 1
                                 
                                 when (buttonNumber) {
-                                    // 1号按钮 - 主页
+                                    // 1号按钮 - 全屏查看图片
                                     1 -> {
                                         Button(
                                             onClick = {
-                                                onPageChange(0)
-                                                onDismiss()
+                                                showFullImage = true
                                             },
                                             modifier = Modifier
                                                 .size(60.dp)
@@ -412,12 +418,12 @@ object MainActivityUIComponents {
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.Home,
-                                                    contentDescription = "主页",
+                                                    contentDescription = "图片",
                                                     modifier = Modifier.size(24.dp),
                                                     tint = Color.White
                                                 )
                                                 Text(
-                                                    text = localized("主页", "Home"),
+                                                    text = localized("图片", "Image"),
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color.White
@@ -549,7 +555,7 @@ object MainActivityUIComponents {
                                                 verticalArrangement = Arrangement.Center
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                                    imageVector = Icons.Default.KeyboardArrowLeft,
                                                     contentDescription = "左变道",
                                                     modifier = Modifier.size(24.dp),
                                                     tint = Color.White
@@ -582,7 +588,7 @@ object MainActivityUIComponents {
                                                 verticalArrangement = Arrangement.Center
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.Speed,
+                                                    imageVector = CustomIcons.Speed,
                                                     contentDescription = "控速",
                                                     modifier = Modifier.size(24.dp),
                                                     tint = Color.White.copy(alpha = 0.5f)
@@ -618,7 +624,7 @@ object MainActivityUIComponents {
                                                 verticalArrangement = Arrangement.Center
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                                    imageVector = Icons.Default.KeyboardArrowRight,
                                                     contentDescription = "右变道",
                                                     modifier = Modifier.size(24.dp),
                                                     tint = Color.White
@@ -737,7 +743,7 @@ object MainActivityUIComponents {
                                                 verticalArrangement = Arrangement.Center
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.BugReport,
+                                                    imageVector = CustomIcons.BugReport,
                                                     contentDescription = "实验",
                                                     modifier = Modifier.size(24.dp),
                                                     tint = Color.White
@@ -816,6 +822,42 @@ object MainActivityUIComponents {
                             context = context
                         )
                         }
+                    }
+                }
+            }
+        }
+
+        // 全屏图片查看弹窗
+        if (showFullImage) {
+            Dialog(onDismissRequest = { showFullImage = false }) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black)
+                        .clickable { showFullImage = false },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.sponsor),
+                        contentDescription = "全屏图片",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                    // 关闭按钮（右上角）
+                    IconButton(
+                        onClick = { showFullImage = false },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "关闭",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
                 }
             }

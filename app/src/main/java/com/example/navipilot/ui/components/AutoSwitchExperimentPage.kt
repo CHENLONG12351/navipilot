@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.navipilot.CustomIcons
 import com.example.navipilot.ui.utils.localized
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -99,7 +100,7 @@ fun AutoSwitchExperimentPage(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = CustomIcons.ArrowBack,
                             contentDescription = localized("返回", "Back")
                         )
                     }

@@ -43,6 +43,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.navipilot.CarrotManNetworkClient
+import com.example.navipilot.CustomIcons
 import com.example.navipilot.MainActivityUIComponents
 import kotlinx.coroutines.launch
 import org.maplibre.android.MapLibre
@@ -952,7 +953,7 @@ fun OsmMapView(
                                     shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth(),
                                     contentPadding = PaddingValues(vertical = 11.dp)
                                 ) {
-                                    Icon(Icons.Default.Navigation, null, modifier = Modifier.size(17.dp))
+                                    Icon(CustomIcons.Navigation, null, modifier = Modifier.size(17.dp))
                                     Spacer(Modifier.width(6.dp))
                                     Text(
                                         text = when (currentNavMode) {

@@ -492,7 +492,7 @@ class MainActivityUI(
 
     /** 根据当前选中的导航源显示不同图标 */
     private fun mapSourceButtonIcon(navMode: NavMode): ImageVector = when (navMode) {
-        NavMode.AMAP_AUTO -> Icons.Default.DirectionsCar   // 高德车机版
+        NavMode.AMAP_AUTO -> CustomIcons.DirectionsCar   // 高德车机版
     }
 
     /** 地图源圆形按钮（无底部文字；当前导航源在弹窗中选择） */
