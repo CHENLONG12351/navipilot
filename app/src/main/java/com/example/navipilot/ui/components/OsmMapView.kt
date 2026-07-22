@@ -468,18 +468,6 @@ fun OsmMapView(
                 }
                 ok
             }
-            "AMAP_MOBILE" -> {
-                carrotManFieldsState?.let { state ->
-                    state.value = state.value.copy(
-                        goalPosX = destLon,
-                        goalPosY = destLat,
-                        szGoalName = destName,
-                        isNavigating = true
-                    )
-                }
-                onOpenAmapMobileEmbeddedNav()
-                true
-            }
             else -> false
         }
     }

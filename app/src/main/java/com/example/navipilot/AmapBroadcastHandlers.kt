@@ -79,7 +79,6 @@ class AmapBroadcastHandlers(
             carrotManFields.value = carrotManFields.value.copy(
                 source_last = source
             )
-           // Log.d(TAG, "📊 数据源已更新: $source")
         }
 
         // 🎯 注意：ATC控制功能已移至Python端处理
@@ -277,14 +276,13 @@ class AmapBroadcastHandlers(
     // 地图状态处理 - KEY_TYPE: 10019
     // ===============================
     fun handleMapState(intent: Intent) {
-        //Log.d(TAG, "🗺️ 处理地图状态广播")
+        
         
         val extraState = intent.getSafeIntExtra("EXTRA_STATE", -1)
-        //Log.i(TAG, "地图状态: EXTRA_STATE=$extraState")
         
         // 检查是否为到达目的地状态
         if (extraState == AppConstants.AmapBroadcast.NavigationState.ARRIVE_DESTINATION) {
-            //Log.i(TAG, "🎯 检测到到达目的地状态！")
+            
 
             carrotManFields.value = carrotManFields.value.copy(
                 // 导航状态
@@ -313,7 +311,7 @@ class AmapBroadcastHandlers(
                 lastUpdateTime = System.currentTimeMillis(),
             )
 
-            //Log.i(TAG, "✅ 已更新CarrotMan字段：导航状态=false，转弯类型=201(到达目的地)")
+            
         }
         
         // 🚀 修复：移除立即发送，由NetworkManager统一200ms间隔发送避免闪烁
@@ -323,7 +321,7 @@ class AmapBroadcastHandlers(
     // 引导信息处理 - KEY_TYPE: 10001
     // ===============================
     fun handleGuideInfo(intent: Intent) {
-        //Log.d(TAG, "🧭 处理引导信息广播 (KEY_TYPE: 10001)")
+        
 
         try {
             // 基础道路信息
@@ -337,7 +335,6 @@ class AmapBroadcastHandlers(
             // 🆕 添加道路限速调试日志（注意：在修正逻辑之前，这里显示原始值）
             // 修正后的值会在下面获取 roadType 后显示
             if (speedLimit > 0) {
-                //Log.d(TAG, "🚦 从高德广播接收道路限速: ${speedLimit}km/h")
             } else {
                 Log.v(TAG, "⚠️ 高德广播未包含道路限速信息 (LIMITED_SPEED=0)")
             }
@@ -378,7 +375,6 @@ class AmapBroadcastHandlers(
             
             // 记录GPS坐标映射情况
             if (carLatitude == 0.0 && carLongitude == 0.0) {
-                //Log.d(TAG, "📍 GPS坐标为0，使用手机GPS: lat=$effectiveLatitude, lon=$effectiveLongitude")
             } else {
                 Log.d(TAG, "📍 使用导航GPS坐标: lat=$effectiveLatitude, lon=$effectiveLongitude")
             }
@@ -490,7 +486,6 @@ class AmapBroadcastHandlers(
             val primaryIcon = if (newIcon != -1) newIcon else icon
             val carrotTurnType = if (primaryIcon != -1) {
                 val mappedType = mapAmapIconToCarrotTurn(primaryIcon)
-                //Log.d(TAG, "🔄 转弯映射: 高德图标=$primaryIcon -> CarrotMan类型=$mappedType")
                 mappedType
             } else {
                 carrotManFields.value.nTBTTurnType
@@ -498,7 +493,6 @@ class AmapBroadcastHandlers(
 
             val carrotNextTurnType = if (nextNextTurnIcon != -1) {
                 val mappedNextType = mapAmapIconToCarrotTurn(nextNextTurnIcon)
-                //Log.d(TAG, "🔄 下一转弯映射: 高德图标=$nextNextTurnIcon -> CarrotMan类型=$mappedNextType")
                 mappedNextType
             } else {
                 carrotManFields.value.nTBTTurnTypeNext
@@ -552,7 +546,6 @@ class AmapBroadcastHandlers(
                  Log.i(TAG, "🚦   Python将处理: ${if (currentNSdiBlockType in listOf(2, 3)) "xSpdType=4 (区间测速), xSpdDist=nSdiBlockDist" else "xSpdType=nSdiType ($actualNSdiType), xSpdDist=nSdiDist"}")
              } else if (cameraType == -1 && cameraDist == -1) {
                  // 没有摄像头信息，这是正常的导航更新（不影响区间测速状态）
-                 // Log.v(TAG, "🚦 [KEY_TYPE:10001] 无摄像头信息（正常导航更新）")
              }
 
             // 🚀 新增：NOA 增强字段提取
@@ -582,7 +575,6 @@ class AmapBroadcastHandlers(
                 nRoadLimitSpeed = correctedSpeedLimit.takeIf { it > 0 } ?: carrotManFields.value.nRoadLimitSpeed.also {
                     // 🆕 如果高德广播没有道路限速，记录当前值（用于调试）
                     if (speedLimit == 0 && it > 0) {
-                        //Log.v(TAG, "⚠️ 高德广播LIMITED_SPEED=0，保持当前道路限速: ${it}km/h")
                     }
                 },
                 nGoPosDist = remainDistance.takeIf { it > 0 } ?: carrotManFields.value.nGoPosDist,
@@ -723,12 +715,7 @@ class AmapBroadcastHandlers(
                 // 🚀 NOA 增强字段更新
                 curSegNum = curSegNum,
                 curPointNum = curPointNum,
-                exitNameInfo = exitNameInfo,
                 segAssistantAction = segAssistantAction,
-                sapaName = sapaName,
-                sapaDist = sapaDist,
-                sapaType = sapaType,
-                sapaNum = sapaNum,
 
                 // 时间戳更新
                 lastUpdateTime = currentTime
@@ -744,7 +731,6 @@ class AmapBroadcastHandlers(
 
             // 🚀 修复：移除立即发送，由NetworkManager统一200ms间隔发送避免闪烁
 
-            //Log.i(TAG, "✅ 引导信息已更新到CarrotMan字段")
 
         } catch (e: Exception) {
             Log.e(TAG, "处理引导信息失败: ${e.message}", e)
@@ -810,7 +796,6 @@ class AmapBroadcastHandlers(
     // 定位信息处理 - KEY_TYPE: 10065
     // ===============================
     fun handleLocationInfo(intent: Intent) {
-       // Log.d(TAG, "📍 处理定位信息广播")
         
         try {
             val latitude = intent.getDoubleExtra("LATITUDE", 0.0)
@@ -819,7 +804,6 @@ class AmapBroadcastHandlers(
             val bearing = intent.getFloatExtra("BEARING", 0.0f).toDouble()
             
             if (latitude != 0.0 && longitude != 0.0) {
-               // Log.d(TAG, "📍 高德定位广播: lat=$latitude, lon=$longitude, speed=${speed}km/h, bearing=${bearing}°")
                 
                 // 简化的时间更新
                 val currentTime = System.currentTimeMillis()
@@ -846,7 +830,6 @@ class AmapBroadcastHandlers(
                     lastUpdateTime = currentTime
                 )
                 
-                //Log.d(TAG, "✅ 定位信息（Navi字段）已更新，主要GPS字段由LocationSensorManager持续更新")
                 
                 // 🚀 修复：移除立即发送，由NetworkManager统一200ms间隔发送避免闪烁
             } else {
@@ -862,7 +845,6 @@ class AmapBroadcastHandlers(
     // 转向信息处理 - KEY_TYPE: 10006
     // ===============================
     fun handleTurnInfo(intent: Intent) {
-        //Log.d(TAG, "🔄 处理转向信息广播")
         
         try {
             val turnDistance = intent.getIntExtra("TURN_DISTANCE", 0)
@@ -871,8 +853,6 @@ class AmapBroadcastHandlers(
             val nextTurnDistance = intent.getIntExtra("NEXT_TURN_DISTANCE", 0)
             val nextTurnType = intent.getIntExtra("NEXT_TURN_TYPE", -1)
             
-            //Log.i(TAG, "转向信息: 距离=${turnDistance}m, 类型=$turnType, 指令=$turnInstruction")
-            //Log.i(TAG, "下一转向: 距离=${nextTurnDistance}m, 类型=$nextTurnType")
             
             carrotManFields.value = carrotManFields.value.copy(
                 nTBTDist = turnDistance,
@@ -883,7 +863,6 @@ class AmapBroadcastHandlers(
                 lastUpdateTime = System.currentTimeMillis()
             )
             
-            //Log.i(TAG, "✅ 转向信息已更新到CarrotMan字段")
             
             // 🚀 触发蓝牙继电器逻辑
             checkAndTriggerRelay(turnType, turnDistance)
@@ -903,7 +882,6 @@ class AmapBroadcastHandlers(
             val naviStatus = intent.getIntExtra("NAVI_STATUS", -1)
             val isNavigating = naviStatus == 1 // 假设1表示导航中
             
-            //Log.i(TAG, "导航状态: status=$naviStatus, 导航中=$isNavigating")
             
             carrotManFields.value = carrotManFields.value.copy(
                 isNavigating = isNavigating,
@@ -911,7 +889,6 @@ class AmapBroadcastHandlers(
                 lastUpdateTime = System.currentTimeMillis()
             )
             
-            //Log.i(TAG, "✅ 导航状态已更新到CarrotMan字段")
             
         } catch (e: Exception) {
             Log.e(TAG, "处理导航状态失败: ${e.message}", e)
@@ -922,21 +899,18 @@ class AmapBroadcastHandlers(
      * 处理路线信息广播 (KEY_TYPE: 10003)
      */
     fun handleRouteInfo(intent: Intent) {
-        //Log.d(TAG, "🛣️ 处理路线信息广播")
         
         try {
             val routeDistance = intent.getIntExtra("ROUTE_DISTANCE", 0)
             val routeTime = intent.getIntExtra("ROUTE_TIME", 0)
             val routeType = intent.getIntExtra("ROUTE_TYPE", -1)
             
-           // Log.d(TAG, "🛣️ 路线信息: 距离=${routeDistance}m, 时间=${routeTime}s, 类型=$routeType")
             
             carrotManFields.value = carrotManFields.value.copy(
                 lastUpdateTime = System.currentTimeMillis()
             )
             
         } catch (e: Exception) {
-            //Log.e(TAG, "❌ 处理路线信息失败: ${e.message}", e)
         }
     }
 
@@ -1142,7 +1116,6 @@ class AmapBroadcastHandlers(
      * 处理电子眼信息广播 (KEY_TYPE: 13005)
      */
     fun handleCameraInfo(intent: Intent) {
-        //Log.d(TAG, "📷 处理电子眼信息广播")
         
         try {
             val cameraType = intent.getSafeIntExtra("CAMERA_TYPE", -1)
@@ -1180,7 +1153,6 @@ class AmapBroadcastHandlers(
      * 处理SDI Plus信息广播 (KEY_TYPE: 10007)
      */
     fun handleSdiPlusInfo(intent: Intent) {
-       // Log.d(TAG, "📊 处理SDI Plus信息广播")
         
         try {
             val sdiPlusType = intent.getSafeIntExtra("SDI_PLUS_TYPE", -1)
@@ -1215,11 +1187,8 @@ class AmapBroadcastHandlers(
             val trafficLevel = intent.getSafeIntExtra("TRAFFIC_LEVEL", -1)
             val trafficDescription = intent.getStringExtra("TRAFFIC_DESCRIPTION") ?: ""
 
-            carrotManFields.value = carrotManFields.value.copy(
-                trafficLevel = trafficLevel,
-                trafficDescription = trafficDescription,
-                lastUpdateTime = System.currentTimeMillis()
-            )
+            // 路况数据仅用于调试，不再写入 CarrotManFields
+            Log.d(TAG, "📊 路况信息: level=$trafficLevel, desc=$trafficDescription")
         } catch (e: Exception) {
             Log.e(TAG, "❌ 处理路况信息失败: ${e.message}", e)
         }
@@ -1234,12 +1203,8 @@ class AmapBroadcastHandlers(
             val situationDistance = intent.getSafeIntExtra("SITUATION_DISTANCE", 0)
             val situationDescription = intent.getStringExtra("SITUATION_DESCRIPTION") ?: ""
 
-            carrotManFields.value = carrotManFields.value.copy(
-                situationType = situationType,
-                situationDistance = situationDistance,
-                situationDescription = situationDescription,
-                lastUpdateTime = System.currentTimeMillis()
-            )
+            // 态势数据仅用于调试，不再写入 CarrotManFields
+            Log.d(TAG, "🚦 态势信息: type=$situationType, dist=$situationDistance, desc=$situationDescription")
         } catch (e: Exception) {
             Log.e(TAG, "❌ 处理导航态势失败: ${e.message}", e)
         }
@@ -1285,7 +1250,6 @@ class AmapBroadcastHandlers(
             carrotManFields.value = carrotManFields.value.copy(
                 trafficLightState = carrotTrafficState,
                 trafficLightCountdown = leftSec,
-                trafficLightDistance = 0,  // compatibility field, distance not available from 60073 broadcast
                 amap_traffic_light_status = trafficLightStatus,
                 amap_traffic_light_dir = direction,
                 amap_green_light_last_second = greenLightCountDown,
@@ -1671,7 +1635,6 @@ class AmapBroadcastHandlers(
             val driveWayEnabled = jsonObject.optString("drive_way_enabled", "false")
             val driveWaySize = jsonObject.optInt("drive_way_size", 0)
             
-            //Log.i(TAG, "  ✅ 车道线是否有效: $driveWayEnabled")
             Log.i(TAG, "  🔢 车道数量: $driveWaySize")
 
             // 如果车道线有效且车道数量大于0，则更新字段

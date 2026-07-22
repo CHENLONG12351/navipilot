@@ -151,21 +151,10 @@ data class CarrotManFields(
     var nSdiAverageSpeed: Int = -1,
     var extraState: Int = -1,
 
-    // 路况
-    var trafficLevel: Int = -1,
-    var trafficDescription: String = "",
-
     // 车道信息（用于显示）
     var laneCount: Int = 0,
     var laneInfoList: List<LaneInfo> = emptyList(),
     var nLaneCount: Int = 0,
-
-    // 出口与服务区（桥接存储）
-    var exitNameInfo: String = "",
-    var sapaName: String = "",
-    var sapaDist: Int = -1,
-    var sapaType: Int = -1,
-    var sapaNum: Int = -1,
 
     // 航段辅助 — 被 MainActivityLifecycle 读取
     var segAssistantAction: Int = -1,
@@ -175,20 +164,7 @@ data class CarrotManFields(
 
     // 红绿灯倒计时 — 腾讯导航
     var trafficLightState: Int = -1,
-    var trafficLightDistance: Int = 0,
     var trafficLightCountdown: Int = 0,
-
-    // 态势信息 — AmapNavDataBridge
-    var situationType: Int = -1,
-    var situationDistance: Int = 0,
-    var situationDescription: String = "",
-
-    // 高德手机 SDK 内嵌导航辅助状态
-    var amapSdkCrossVisible: Boolean = false,
-    var amapSdkModeCrossVisible: Boolean = false,
-    var amapParallelElevatedFlag: Int = -1,
-    var amapParallelMainSideFlag: Int = -1,
-    var amapNaviMapMode: Int = 0,
 
     // 高德车机广播原始红绿灯调试字段
     var amap_traffic_light_status: Int = 0,

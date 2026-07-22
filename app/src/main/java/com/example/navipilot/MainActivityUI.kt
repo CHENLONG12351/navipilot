@@ -168,17 +168,7 @@ class MainActivityUI(
                             carrotManFields = core.carrotManFields
                         )
                     }
-
-                    // 腾讯导航已嵌入 HomePage 地图槽；若仍有代码将 currentPage 设为 12，拉回主页避免空白
-                    LaunchedEffect(core.currentPage) {
-                        if (core.currentPage == 12) {
-                            core.currentPage = 0
-                        }
-                    }
-                    
-                    // 功能说明弹窗已移除 — 所有功能对全部用户开放
                 }
-
             }
         }
     }
@@ -210,6 +200,15 @@ class MainActivityUI(
         // 点击首页预览条：全屏 7706 JSON 调试
         var show7706JsonDebug by remember { mutableStateOf(false) }
         val carrotFieldsLive by core.carrotManFields
+
+        // 接收到高德广播后自动弹出 7706 调试面板（1 秒防抖）
+        LaunchedEffect(core.show7706DebugTrigger.value) {
+            if (core.show7706DebugTrigger.value > 0) {
+                show7706JsonDebug = true
+                kotlinx.coroutines.delay(1000)
+                core.show7706DebugTrigger.value = 0  // 重置，避免重复触发
+            }
+        }
         val mapContext = LocalContext.current
 
         // ===== 面板显示用状态（由 OsmMapView 回调更新）=====
@@ -223,14 +222,6 @@ class MainActivityUI(
         var companyNavTrigger by remember { mutableIntStateOf(0) }
         var companyNavLongTrigger by remember { mutableIntStateOf(0) }
         
-        // 定时更新地图服务类型（每5秒检查一次）
-        LaunchedEffect(Unit) {
-            while (true) {
-                core.updateMapServiceType()
-                kotlinx.coroutines.delay(5000)
-            }
-        }
-
         // ===== 地图相关状态 =====
         val mapService = core.userSelectedMode
         val gpsAccuracy = carrotManFields.accuracy
@@ -327,12 +318,43 @@ class MainActivityUI(
         // ===== 上下布局：顶部地图 + 底部控制栏 =====
         val cruiseSetSpeed = try { carrotManFields.vCruiseKph.toInt() } catch (_: Exception) { 0 }
         Column(modifier = Modifier.fillMaxSize()) {
-            // 顶部：地图（占据主要空间）
+            // 顶部：地图（占据主要空间）+ 右侧数据面板
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-            ) { mapZoneContent() }
+            ) {
+                mapZoneContent()
+
+                // 右侧数据面板（车道感知、速度环、实验模式等）
+                HomeControlPanel(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .fillMaxHeight()
+                        .width(220.dp),
+                    navMode = navMode,
+                    onModeChange = { mode ->
+                        core.userSelectedMode = "AMAP"
+                        core.persistUserSelectedNavMode()
+                    },
+                    carrotManFields = carrotManFields,
+                    userType = userType,
+                    cruiseSetSpeed = cruiseSetSpeed,
+                    carCruiseSpeed = try { carrotManFields.carcruiseSpeed.toInt() } catch (_: Exception) { 0 },
+                    carrotParamClient = core.getCarrotParamClientSafely(),
+                    homeAddressSet = homeAddressSet,
+                    companyAddressSet = companyAddressSet,
+                    commaConnectionState = commaConnectionState,
+                    onShowAdvancedDialog = { showAdvancedDialog = true },
+                    onPageChange = { page -> core.currentPage = page },
+                    onSearchClick = { searchShowTrigger++ },
+                    onHomeNavClick = { homeNavTrigger++ },
+                    onHomeNavLongClick = { homeNavLongTrigger++ },
+                    onCompanyNavClick = { companyNavTrigger++ },
+                    onCompanyNavLongClick = { companyNavLongTrigger++ },
+                    onLanePanelClick = { show7706JsonDebug = true }
+                )
+            }
 
             // 底部：控制栏（横向平铺）
             Row(
@@ -520,17 +542,6 @@ class MainActivityUI(
                 )
             }
         }
-    }
-
-    /** 将用户类型数字转为可读文本（与 ProfilePage 一致） */
-    private fun userTypeDisplayName(userType: Int): String = when (userType) {
-        -1 -> localized("管理员", "Admin")
-        0 -> localized("未知用户", "Unknown")
-        1 -> localized("新用户", "New User")
-        2 -> localized("支持者", "Supporter")
-        3 -> localized("赞助者", "Sponsor")
-        4 -> localized("铁粉", "Super Fan")
-        else -> localized("未知类型", "Unknown Type")
     }
 
     /** 地图导航源选择弹窗：车机版优先，其次腾讯/高德手机版与谷歌 */
@@ -835,7 +846,7 @@ class MainActivityUI(
                         modifier = Modifier,
                         value = carrotManFields.vEgoKph,
                         color = Color(0xFF22C55E),
-                        onClick = { onPageChange(2) }
+                        onClick = { onShowAdvancedDialog() }
                     )
                     HomePanelMapSource(
                         modifier = Modifier,
@@ -897,33 +908,12 @@ class MainActivityUI(
                     }
                 }
 
-                // 红绿灯数据（高德车机版）
-                val panelCtx = panelContext
-                fun isAccessibilityEnabled(): Boolean {
-                    return try {
-                        val am = panelCtx.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
-                        val enabledServices = android.provider.Settings.Secure.getString(
-                            panelCtx.contentResolver,
-                            android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-                        ) ?: ""
-                        enabledServices.contains(panelCtx.packageName)
-                    } catch (_: Exception) { false }
-                }
-                val accessibilityOn = remember { mutableStateOf(isAccessibilityEnabled()) }
-                LaunchedEffect(Unit) {
-                    while (true) {
-                        accessibilityOn.value = isAccessibilityEnabled()
-                        kotlinx.coroutines.delay(3000)
-                    }
-                }
                 // 高德车机版红绿灯数据
                 val amapState = carrotManFields.trafficLightState     // -1=无, 0=绿灯, 1=红灯, 2=黄灯
                 val amapCountdown = carrotManFields.trafficLightCountdown // 倒计时秒数
-                val amapDist = carrotManFields.trafficLightDistance    // 距离
                 val hasAmapData = amapState >= 0 && amapCountdown > 0
-                val showTrafficCard = hasAmapData || !accessibilityOn.value
 
-                if (showTrafficCard) {
+                if (hasAmapData) {
                     // 红绿灯颜色
                     val tColor = when (amapState) {
                         0 -> Color(0xFF22C55E)   // 绿灯
@@ -941,11 +931,7 @@ class MainActivityUI(
                     Card(
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = Surface800.copy(alpha = 0.85f)),
-                        modifier = if (!accessibilityOn.value && !hasAmapData)
-                            Modifier.fillMaxWidth().clickable {
-                                try { panelCtx.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) } catch (_: Exception) {}
-                            }
-                        else Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp),
@@ -953,71 +939,19 @@ class MainActivityUI(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // 高德红绿灯
-                            if (hasAmapData) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(tColor))
-                                    Spacer(Modifier.width(3.dp))
-                                    Column {
-                                        Text(tLabel, fontSize = 9.sp, color = tColor, fontWeight = FontWeight.Bold)
-                                        Text("${amapCountdown}s", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                                // 分隔
-                                Box(modifier = Modifier.width(1.dp).height(20.dp).background(Color(0xFF374151)))
-                            }
-                            // 高德距离
-                            if (hasAmapData && amapDist > 0) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("📏", fontSize = 12.sp)
-                                    Text("${amapDist}m", fontSize = 11.sp, color = Color(0xFF94A3B8))
-                                }
-                                Box(modifier = Modifier.width(1.dp).height(20.dp).background(Color(0xFF374151)))
-                            }
-                            // 无障碍引导（无数据时显示）
-                            if (!hasAmapData && !accessibilityOn.value) {
-                                Text("📡", fontSize = 14.sp)
-                                Spacer(Modifier.width(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(tColor))
+                                Spacer(Modifier.width(3.dp))
                                 Column {
-                                    Text(localized("开启读取红绿灯", "Enable traffic reader"), fontSize = 9.sp, color = Color(0xFF94A3B8))
-                                    Text(localized("点击设置", "Tap to settings"), fontSize = 7.sp, color = Color(0xFF64748B))
+                                    Text(tLabel, fontSize = 9.sp, color = tColor, fontWeight = FontWeight.Bold)
+                                    Text("${amapCountdown}s", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                                 }
-                                Spacer(Modifier.width(4.dp))
                             }
                         }
                     }
                 }
 
                 }  // Column 结束
-        }
-    }
-
-    /** 速度显示面板（参考图片左侧速度60样式） */
-    @Composable
-    private fun SpeedDisplayPanel(
-        value: Int,
-        label: String,
-        backgroundColor: Color
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .size(width = 72.dp, height = 64.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(backgroundColor.copy(alpha = 0.85f))
-                .padding(4.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = value.toString(),
-                color = Color.White,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = label,
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 10.sp
-            )
         }
     }
 
@@ -1072,35 +1006,6 @@ class MainActivityUI(
                     fontWeight = FontWeight.Bold
                 )
             }
-        }
-    }
-
-    /** 数值显示面板（预留样式） */
-    @Composable
-    private fun NumberDisplayPanel(
-        value: Int,
-        label: String
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .size(width = 64.dp, height = 56.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFF475569).copy(alpha = 0.8f))
-                .padding(4.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = value.toString(),
-                color = Color.White,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = label,
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 9.sp
-            )
         }
     }
 
@@ -1501,113 +1406,6 @@ private fun LaneIndicator(
                         modifier = Modifier.padding(bottom = 2.dp)
                     )
                 }
-            }
-        }
-    }
-
-    /**
-     * 应用功能说明弹窗组件
-     */
-    @Composable
-    private fun AppFeatureDialog(
-        onDismiss: () -> Unit
-    ) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = localized("🚗 CP搭子", "🚗 NaviPilot"),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1E293B)
-                    )
-                }
-            },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.verticalScroll(rememberScrollState())
-                ) {
-                    // ⚠️ 雷达车型提示
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = localized(
-                                "⚠️ 仅部分支持雷达统合的车型体验最佳。非雷达车型部分功能（如前车距离检测）可能受限。",
-                                "⚠️ Best experience on vehicles with radar integration. Non-radar vehicles may have limited features (e.g. lead distance detection)."
-                            ),
-                            fontSize = 13.sp,
-                            color = Color(0xFF92400E),
-                            lineHeight = 18.sp,
-                            modifier = Modifier.padding(12.dp),
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    // 简洁功能列表
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FeatureItem("🗺️", localized("双地图导航", "Dual Nav"), localized("高德车机+OSM", "Amap Auto+OSM"))
-                        FeatureItem("🚗", localized("驾驶辅助", "Driving Assist"), localized("自动变道转弯", "Auto lane change & turn"))
-                        FeatureItem("📊", localized("驾驶报告", "Driving Report"), localized("评分与建议", "Score & tips"))
-                    }
-
-                    Text(
-                        text = localized("15秒后自动关闭", "Auto-close in 15s"),
-                        fontSize = 11.sp,
-                        color = Color(0xFF94A3B8),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(localized("知道了", "Got it"), fontWeight = FontWeight.Medium)
-                }
-            },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(16.dp)
-        )
-    }
-
-    /**
-     * 功能项组件
-     */
-    @Composable
-    private fun FeatureItem(icon: String, title: String, description: String) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = icon,
-                fontSize = 18.sp,
-                modifier = Modifier.size(24.dp)
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = title,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF1E293B)
-                )
-                Text(
-                    text = description,
-                    fontSize = 11.sp,
-                    color = Color(0xFF64748B)
-                )
             }
         }
     }

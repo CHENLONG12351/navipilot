@@ -145,54 +145,20 @@ class MainActivityCore(
     }
     
     /**
-     * 定时检查地图服务类型（仅在非 AMAP_MOBILE 模式下自动切换 OSM/AMAP）
-     */
-    fun updateMapServiceType() {
-        // 嵌入第三方 SDK 导航时不自动切换 OSM/车机高德
-        if (activeNavMode.value == "AMAP_MOBILE") {
-            return
-        }
-
-        val currentTime = System.currentTimeMillis()
-        val timeSinceLastBroadcast = currentTime - lastAmapBroadcastTime.value
-        val newMode = if (timeSinceLastBroadcast < 30000) "AMAP" else "OSM"
-        if (activeNavMode.value != newMode) {
-            Log.i(TAG, "🔄 导航模式自动切换: ${activeNavMode.value} → $newMode")
-        }
-        activeNavMode.value = newMode
-        // 不再写入 mapServiceType：与 [userSelectedMode] 解耦，避免与 OsmMapView 外部导航逻辑打架
-    }
-    
-    /**
-     * 标记收到高德广播（仅在非 AMAP_MOBILE 模式下切换到 AMAP）
+     * 标记收到高德广播
      */
     fun markAmapBroadcastReceived() {
         lastAmapBroadcastTime.value = System.currentTimeMillis()
-        if (activeNavMode.value != "AMAP_MOBILE") {
-            activeNavMode.value = "AMAP"
-        }
-    }
-    
-    /** 切换到高德手机 SDK 嵌入导航模式 */
-    fun switchToAmapMobileMode() {
-        Log.i(TAG, "🔄 切换到高德手机导航模式 (之前: ${activeNavMode.value})")
-        activeNavMode.value = "AMAP_MOBILE"
-        mapServiceType.value = "AMAP_MOBILE"
-        carrotManFields.value = carrotManFields.value.copy(source_last = "amap_mobile")
-    }
-
-    /** 退出高德手机嵌入导航 */
-    fun exitAmapMobileMode() {
-        val currentTime = System.currentTimeMillis()
-        val timeSinceLastBroadcast = currentTime - lastAmapBroadcastTime.value
-        val fallbackMode = if (timeSinceLastBroadcast < 30000) "AMAP" else "OSM"
-        Log.i(TAG, "🔄 退出高德手机导航模式 → $fallbackMode")
-        activeNavMode.value = fallbackMode
-        mapServiceType.value = fallbackMode
+        activeNavMode.value = "AMAP"
+        // 触发 7706 调试面板自动弹出
+        show7706DebugTrigger.value++
     }
 
     // 实时网络流程事件（用于在主页顶部显示发现->连接链路）
     val pipelineEvents = mutableStateListOf<String>()
+
+    // 7706 调试面板触发计数器（每次收到高德广播递增，UI 观察后自动弹出）
+    val show7706DebugTrigger = mutableIntStateOf(0)
 
     fun addPipelineEvent(message: String) {
         // 带时间戳入队，最多保留20条
@@ -273,19 +239,7 @@ class MainActivityCore(
             null
         }
     }
-    
-    /**
-     * 安全获取 DrivingDataCollector（用于 UI 组件）
-     * 如果未初始化，返回 null
-     * 暂时注释，待修复编译问题
-     */
-    /*
-    fun getDrivingDataCollectorSafely(): com.example.navipilot.scoring.DrivingDataCollector? {
-        // return drivingDataCollector
-        return null  // 暂时返回null，待修复编译问题
-    }
-    */
-    
+
     // 高德地图相关管理器（已整合到AmapBroadcastHandlers中）
     // 设备管理器
     lateinit var deviceManager: DeviceManager
@@ -1167,11 +1121,7 @@ class MainActivityCore(
                 Log.i(TAG, "🧹 已清理广播数据列表")
             }
             
-            // 建议GC
-            System.gc()
-            Log.i(TAG, "🧹 已建议系统执行GC")
-            
-        } catch (e: Exception) {
+            } catch (e: Exception) {
             Log.e(TAG, "❌ 内存清理失败: ${e.message}", e)
         }
     }

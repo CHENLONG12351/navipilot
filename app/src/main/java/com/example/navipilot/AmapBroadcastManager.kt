@@ -53,9 +53,6 @@ class AmapBroadcastManager(
     // 广播处理Channel - 使用有限容量避免内存溢出
     // 使用BUFFERED(容量64)替代UNLIMITED，防止内存无限增长导致闪退
     private val broadcastChannel = Channel<Pair<Intent, Int>>(Channel.BUFFERED)
-    
-    // 🚀 性能优化：移除数据限流器，确保实时处理所有广播
-    // private val throttler = DataThrottler(50L) // 已移除，改为实时处理
 
     // 广播处理器（整合了所有功能）
     private val broadcastHandlers = AmapBroadcastHandlers(
@@ -85,26 +82,23 @@ class AmapBroadcastManager(
             
             try {
                 val action = intent.action
-                //Log.i(TAG, "📡 收到广播: $action")
 
                 // 记录广播的基本信息（对简要类型抑制详细行）
                 val keyType = intent.getIntExtra("KEY_TYPE", -1)
                 val extraState = intent.getIntExtra("EXTRA_STATE", -1)
                 val isBriefType = false
                 if (!isBriefType) {
-                    // Log.d(TAG, "📦 广播详情: action=$action, KEY_TYPE=$keyType, EXTRA_STATE=$extraState")
+                    
                 }
 
                 when (action) {
                     AppConstants.AmapBroadcast.ACTION_AMAP_SEND,
                     AppConstants.AmapBroadcast.ACTION_AMAP_LEGACY,
                     AppConstants.AmapBroadcast.ACTION_AUTONAVI -> {
-                        //Log.i(TAG, "🎯 处理高德地图标准广播") //手动注释
                         onBroadcastReceived?.invoke() // 通知收到广播
                         handleAmapSendBroadcast(intent)
                     }
                     AppConstants.AmapBroadcast.ACTION_AMAP_RECV -> {
-                        // Log.v(TAG, "收到发送给高德的广播数据")
                         logAllExtras(intent)
                     }
                     "AMAP_NAVI_ACTION_UPDATE", "AMAP_NAVI_ACTION_TURN",
@@ -238,17 +232,11 @@ class AmapBroadcastManager(
      */
     private fun handleAmapSendBroadcast(intent: Intent) {
         val keyType = intent.getIntExtra("KEY_TYPE", -1)
-        
-        // 🚀 性能优化：移除限流机制，确保所有广播都被实时处理
-        // 注释掉原来的限流检查，改为实时处理所有数据
-        // if (!throttler.shouldProcess()) {
-        //     return
-        // }
-        
+
         // 🎯 根据KEY_TYPE决定日志输出级别
         val isBriefLog = false
         if (isBriefLog) {
-            //Log.d(TAG, "📝 处理广播 (简要) KEY_TYPE=$keyType") //零时注释
+            
         } else {
             // 其他KEY_TYPE - 输出详细广播数据
             // 🚀 显示所有类型的原始数据（包括 KEY_TYPE: 10001）
@@ -296,23 +284,18 @@ class AmapBroadcastManager(
                 
                 // 🚀 修复：移除立即发送，由NetworkManager统一200ms间隔发送避免闪烁
                 10056 -> {
-                    // Log.d(TAG, "🛣️ 处理路线信息广播 (KEY_TYPE: 10056)")
                     // 数据已更新到CarrotMan字段，由自动发送任务统一发送
                 }
                 13022 -> {
-                    // Log.d(TAG, "🧭 处理导航状态广播 (KEY_TYPE: 13022)")
+                    
                     // 数据已更新到CarrotMan字段，由自动发送任务统一发送
                 }
                 // 🎯 临时注释：只使用引导信息广播(KEY_TYPE: 10001)的限速数据
-                // AppConstants.AmapBroadcast.SpeedCamera.SPEED_LIMIT -> handleSpeedLimit(intent)
-                // 新增：区间测速(12110) 专用处理
                 AppConstants.AmapBroadcast.SpeedCamera.SPEED_LIMIT -> handleSpeedLimit(intent)
                 // 13005 与 10007 解析与映射已移除：仅跳过
                 AppConstants.AmapBroadcast.SpeedCamera.CAMERA_INFO -> {
-                    // Log.d(TAG, "🧹 忽略电子眼(13005)映射：已按要求移除")
                 }
                 AppConstants.AmapBroadcast.SpeedCamera.SDI_PLUS_INFO -> {
-                    // Log.d(TAG, "🧹 忽略SDI Plus(10007)映射：已按要求移除")
                 }
                 AppConstants.AmapBroadcast.MapLocation.TRAFFIC_INFO -> broadcastHandlers.handleTrafficInfo(intent)
                 AppConstants.AmapBroadcast.MapLocation.NAVI_SITUATION -> broadcastHandlers.handleNaviSituation(intent)
@@ -320,16 +303,9 @@ class AmapBroadcastManager(
                 AppConstants.AmapBroadcast.MapLocation.GEOLOCATION_INFO -> handleGeolocationInfo(intent)
                 AppConstants.AmapBroadcast.LaneInfo.DRIVE_WAY_INFO -> handleDriveWayInfo(intent)
                 else -> {
-                    // 🚀 修复：移除立即发送，由NetworkManager统一200ms间隔发送避免闪烁
-                    // Log.d(TAG, "📡 处理通用广播: KEY_TYPE=$keyType")
                     // 数据已更新到CarrotMan字段，由自动发送任务统一发送
                 }
             }
-            
-            // 🚀 修复闪烁：移除通用发送调用，避免重复发送
-            // 各个handler（如handleGuideInfo）内部已经有立即发送的逻辑
-            // 在这里再次发送会导致每个广播发送2次，造成UI闪烁
-            // networkManager?.sendCarrotManDataToComma3()  // 已移除
         } catch (e: Exception) {
             Log.e(TAG, "处理KEY_TYPE $keyType 失败: ${e.message}", e)
         }
@@ -419,7 +395,6 @@ class AmapBroadcastManager(
 
     // 处理其他格式的高德地图广播
     private fun handleAlternativeAmapBroadcast(intent: Intent) {
-        // Log.i(TAG, "🔄 处理其他格式高德广播: ${intent.action}")
         logAllExtras(intent)
         extractBasicNavigationInfo(intent)
     }
@@ -461,9 +436,7 @@ class AmapBroadcastManager(
             }
 
             if (hasUpdate) {
-                // Log.i(TAG, "🔄 从未识别广播中成功提取并更新了导航信息")
             } else {
-                // Log.d(TAG, "ℹ️ 未从广播中找到可用的导航信息")
             }
         }
     }
@@ -557,7 +530,6 @@ class AmapBroadcastManager(
                 
                 broadcastDataList.clear()
                 broadcastDataList.addAll(broadcastBuffer)
-                //Log.v(TAG, "🔄 同步缓冲区到UI: ${broadcastBuffer.size} 条数据")
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 同步缓冲区失败: ${e.message}", e)

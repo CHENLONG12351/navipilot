@@ -1385,13 +1385,7 @@ class AutoOvertakeManager(
         
         return OvertakeStatusData(
             statusText = statusText,
-            canOvertake = canOvertake,
-            cooldownRemaining = calculatedCooldown,
-            lastDirection = lastDirection ?: lastOvertakeDirection,
-            blockingReason = blockingReason,
-            currentLane = currentLane,
-            totalLanes = totalLanes,
-            laneReminder = laneReminder
+            canOvertake = canOvertake
         )
     }
     

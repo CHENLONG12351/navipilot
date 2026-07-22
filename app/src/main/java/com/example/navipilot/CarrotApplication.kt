@@ -95,12 +95,7 @@ class CarrotApplication : Application() {
             
             // Debug 版本：输出所有日志
             timber.log.Timber.plant(timber.log.Timber.DebugTree())
-            
-            // 也可以添加自定义的 Release Tree
-            // if (!BuildConfig.DEBUG) {
-            //     Timber.plant(CrashReportingTree())
-            // }
-            
+
             timber.log.Timber.d("✅ Timber 日志系统初始化完成")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Timber 初始化失败", e)

@@ -11,6 +11,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
@@ -317,8 +318,8 @@ object MainActivityUIComponents {
         networkManager: NetworkManager, // 添加networkManager参数用于直接发送坐标
         context: android.content.Context
     ) {
-        // 全屏图片查看状态
-        var showFullImage by remember { mutableStateOf(false) }
+        // 关于弹窗状态
+        var showAboutDialog by remember { mutableStateOf(false) }
         // 🆕 通用音频播放函数 - 减少重复代码
         fun playSound(resourceId: Int, soundName: String) {
             try {
@@ -397,11 +398,11 @@ object MainActivityUIComponents {
                                 val buttonNumber = row * 3 + col + 1
                                 
                                 when (buttonNumber) {
-                                    // 1号按钮 - 全屏查看图片
+                                    // 1号按钮 - 关于（显示应用信息）
                                     1 -> {
                                         Button(
                                             onClick = {
-                                                showFullImage = true
+                                                showAboutDialog = true
                                             },
                                             modifier = Modifier
                                                 .size(60.dp)
@@ -417,13 +418,13 @@ object MainActivityUIComponents {
                                                 verticalArrangement = Arrangement.Center
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.Home,
-                                                    contentDescription = "图片",
+                                                    imageVector = Icons.Default.Info,
+                                                    contentDescription = "关于",
                                                     modifier = Modifier.size(24.dp),
                                                     tint = Color.White
                                                 )
                                                 Text(
-                                                    text = localized("图片", "Image"),
+                                                    text = localized("关于", "About"),
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color.White
@@ -827,40 +828,80 @@ object MainActivityUIComponents {
             }
         }
 
-        // 全屏图片查看弹窗
-        if (showFullImage) {
-            Dialog(onDismissRequest = { showFullImage = false }) {
-                Box(
+        // 关于弹窗
+        if (showAboutDialog) {
+            Dialog(onDismissRequest = { showAboutDialog = false }) {
+                Card(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black)
-                        .clickable { showFullImage = false },
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth(0.78f)
+                        .widthIn(max = 340.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = DialogBackground),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.sponsor),
-                        contentDescription = "全屏图片",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        contentScale = ContentScale.Fit
-                    )
-                    // 关闭按钮（右上角）
-                    IconButton(
-                        onClick = { showFullImage = false },
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "关闭",
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
+                        Text(
+                            text = "🚗 CP搭子",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
                         )
+                        Text(
+                            text = localized("Navipilot v260530", "Navipilot v260530"),
+                            fontSize = 13.sp,
+                            color = TextSecondary
+                        )
+                        // 赞助图片（点击可全屏查看）
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showAboutDialog = false }
+                                .padding(vertical = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.sponsor),
+                                contentDescription = localized("赞助图片", "Sponsor image"),
+                                modifier = Modifier
+                                    .fillMaxWidth(0.9f)
+                                    .heightIn(max = 160.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                        HorizontalDivider(color = Surface600)
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            AboutFeatureItem("🗺️", localized("高德车机版导航联动", "AMap Auto Integration"))
+                            AboutFeatureItem("🚗", localized("openpilot 驾驶辅助", "openpilot Driving Assist"))
+                            AboutFeatureItem("📊", localized("车道感知与盲区监测", "Lane Awareness & Blindspot"))
+                            AboutFeatureItem("🔄", localized("自动超车与变道", "Auto Overtake & Lane Change"))
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Button(
+                            onClick = { showAboutDialog = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryLight),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(localized("知道了", "Got it"), fontWeight = FontWeight.Medium)
+                        }
                     }
                 }
             }
+        }
+    }
+
+    @Composable
+    private fun AboutFeatureItem(icon: String, text: String) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(icon, fontSize = 16.sp)
+            Text(text, fontSize = 13.sp, color = TextSecondary)
         }
     }
     

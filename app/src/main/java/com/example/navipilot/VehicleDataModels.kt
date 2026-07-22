@@ -19,13 +19,7 @@ data class XiaogeVehicleData(
 
 data class OvertakeStatusData(
     val statusText: String,
-    val canOvertake: Boolean,
-    val cooldownRemaining: Long?,
-    val lastDirection: String?,
-    val blockingReason: String? = null,
-    val currentLane: Int = 0,
-    val totalLanes: Int = 0,
-    val laneReminder: String? = null
+    val canOvertake: Boolean
 )
 
 data class CarStateData(

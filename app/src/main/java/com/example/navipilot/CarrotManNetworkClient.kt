@@ -1486,7 +1486,6 @@ class CarrotManNetworkClient(
     private fun buildSinfJson(fields: CarrotManFields): String {
         val json = JSONObject()
         val sinf = JSONObject().apply {
-            put("distance", fields.trafficLightDistance)
             when (fields.trafficLightState) {
                 1 -> {  // 红灯
                     put("redLightOn", true)
