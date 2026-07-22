@@ -1,0 +1,299 @@
+{
+  "repo_notes": [
+    {
+      "content": ""
+    }
+  ],
+  "pages": [
+    {
+      "title": "Navipilot (CP搭子) — Project Overview",
+      "purpose": "High-level introduction to Navipilot: what it is, who it's for, the two major subsystems (Android app + carrot server), and how they fit together. Links to all child sections for deeper reading.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Getting Started — Setup, Build & Configuration",
+      "purpose": "Step-by-step guide for new contributors: prerequisites, cloning, local.properties API key configuration, Gradle build commands (assembleDebug/Release), ABI selection, running tests, and the detekt code-quality gate.",
+      "parent": "Navipilot (CP搭子) — Project Overview",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Project Structure & Module Map",
+      "purpose": "Annotated directory tree covering both the Android app (app/src/main/java/…) and the Python carrot server (carrotcode/carrot/…), explaining what each top-level package/directory is responsible for.",
+      "parent": "Navipilot (CP搭子) — Project Overview",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Android App Architecture",
+      "purpose": "Overview of the Android application's coordinator + MVVM + Jetpack Compose architecture, the single-source-of-truth state model, and the data-flow pipeline from navigation SDKs through to the comma3 device. Links to child pages for each major subsystem.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Navigation Integration Layer",
+      "purpose": "Detailed coverage of the four navigation modes (AMAP broadcast, AMAP Mobile SDK, Google Navigation SDK, Tencent SDK, OSM/MapLibre), the broadcast receiver pipeline with Channel back-pressure, coordinate system conversion (GCJ-02 ↔ WGS-84), and the mutual-exclusion mode-switching logic.",
+      "parent": "Android App Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Network Communication Layer",
+      "purpose": "Explains every network channel between the Android app and comma3: UDP 7706 navigation telemetry (5 Hz), TCP 7709 route points, WebSocket 7000 real-time vehicle data (Cap'n Proto decode), HTTP 7000 parameter REST API, and ZMQ 7710 overtake commands. Covers CarrotManNetworkClient, CarrotWsClient, CarrotParamClient, and NetworkManager.",
+      "parent": "Android App Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Intelligent Overtake & Conditional Experiment Systems",
+      "purpose": "Deep dive into AutoOvertakeManager (three-frame debounce decision pipeline, driving-style profiles, ZMQ lane-change commands) and ConditionalExperimentManager (7-condition automatic Experimental/Chill mode switching, parameter write via HTTP API).",
+      "parent": "Android App Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Device Management & SSH Control",
+      "purpose": "Covers DeviceManager, mDNS/NSD device discovery, SSH connection management (SSHJ), remote command execution, model file upload to comma3, and the LocationSensorManager for GPS/parking-spot recording.",
+      "parent": "Android App Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "UI Layer — Jetpack Compose Screens & Components",
+      "purpose": "Overview of the Compose-based UI, the automotive accessibility standards enforced across all screens, and the theme system. Links to child pages for specific screen groups.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Navigation & Map Screens",
+      "purpose": "Detailed reference for GoogleNavPage (NavigationView embedding), TencentNavPage, AmapProjectionView (MediaProjection SurfaceView), OsmMapView (MapLibre GL), and the camera preview (H264 MediaCodec decode over WebSocket).",
+      "parent": "UI Layer — Jetpack Compose Screens & Components",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Driving Report, Scoring & Profile Screens",
+      "purpose": "Covers the five-dimensional driving score engine (smoothness, prediction, intervention, eco, NOO stability), DrivingReportScreen with the pentagon radar chart, the achievement system, and the ProfilePage summary view.",
+      "parent": "UI Layer — Jetpack Compose Screens & Components",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Onboarding, Help & Privacy UI",
+      "purpose": "Documents the 5-page OnboardingScreen, HelpPage (embedded WebView to comma3 Manager), PrivacyDialog (GDPR/PIPL compliance), and the model-switcher page for openpilot model management.",
+      "parent": "UI Layer — Jetpack Compose Screens & Components",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Core Infrastructure & Security",
+      "purpose": "Overview of the foundational cross-cutting concerns: dependency injection (Koin), encrypted storage, error reporting, and the Result type. Links to child pages.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Encrypted Storage & Credential Management",
+      "purpose": "Explains SecurePrefs (EncryptedSharedPreferences with AES-256-GCM, graceful fallback), how API keys (AMAP, Google, GitHub OAuth) are injected at build time via local.properties and BuildConfig, and the security-reviewer audit rules.",
+      "parent": "Core Infrastructure & Security",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Error Reporting, Analytics & Result Type",
+      "purpose": "Covers ErrorReporter (crash/error surfacing), AppAnalytics (anonymised telemetry, GDPR compliance), and the Result<T> sealed class used throughout the codebase for typed error handling.",
+      "parent": "Core Infrastructure & Security",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Carrot Server (openpilot Side)",
+      "purpose": "Overview of the Python aiohttp server that runs on the comma3 device (carrotcode/carrot/), its role as the bridge between openpilot cereal messaging and the Android app, and the main entry points. Links to child pages for backend subsystems.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Carrot Server Backend — Features, Services & API Routes",
+      "purpose": "Detailed reference for server/app.py composition root, the feature/service split, all HTTP and WebSocket routes (settings, params, SSH keys, cars, system, tools, dashcam, screenrecord, terminal), and the live_runtime broker that bridges cereal SubMaster to the frontend.",
+      "parent": "Carrot Server (openpilot Side)",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Realtime Data Transport — WebSocket & Cap'n Proto",
+      "purpose": "Explains the raw_multiplex WebSocket hub (raw_ws.py), camera WebSocket hub (camera_ws.py), Cap'n Proto packet framing (raw_protocol.py), the cereal service subscription list, and how the Android CarrotWsClient decodes the binary stream.",
+      "parent": "Carrot Server (openpilot Side)",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Carrot Man — Navigation Data Bridge (openpilot Side)",
+      "purpose": "Documents carrot_man.py and carrot_serv.py: how openpilot cereal data (carState, modelV2, controlsState) is read, how incoming UDP 7706 navigation JSON is parsed and injected into openpilot's navInstruction, the nav_type_mapping for TBT turn codes, and the ZMQ overtake command handler.",
+      "parent": "Carrot Server (openpilot Side)",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Cluster HUD — Standalone Raylib Display",
+      "purpose": "Overview and usage guide for the standalone raylib-based instrument cluster UI (carrotcode/carrot/cluster/), covering live openpilot data rendering, USB display output (TURZX panels), route replay, debug screen modes, and the ClusterHud parameter controls.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Cluster Renderer & Scene Components",
+      "purpose": "Details cluster_renderer.py, cluster_scene.py, cluster_ui.py, cluster_live.py (OpenpilotLiveSource), cluster_route_replay.py, cluster_simulator.py, and the USB pipeline (cluster_usb_display.py, cluster_usb_pipeline.py) including JPEG encoding and brightness control.",
+      "parent": "Cluster HUD — Standalone Raylib Display",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Kmap — Kakao Map Web Overlay",
+      "purpose": "Documents the kmap/ browser-based map overlay (carrotcode/carrot/kmap/): Kakao Maps SDK integration, real-time vehicle position interpolation, route rendering, nav info display, and how it connects to the carrot server WebSocket for live data.",
+      "parent": "Cluster HUD — Standalone Raylib Display",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Web Admin Portal (Flask)",
+      "purpose": "Overview of the Flask-based web admin portal (web/app.py) used for user management, device usage tracking, sponsor tiers, video management, and log viewing. Covers the SQLite data model and Jinja2 template structure.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Admin Data Models & Authentication",
+      "purpose": "Documents the SQLAlchemy models (User, Log, Video), user-type tiers (unknown/new/supporter/sponsor/superfan), email and GitHub OAuth login flows, and session management.",
+      "parent": "Web Admin Portal (Flask)",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Admin Templates & Deployment",
+      "purpose": "Covers the Jinja2 templates (dashboard, users, logs, videos), Docker-based deployment (Dockerfile, docker-compose.yml), production startup scripts, and dependency management (requirements-prod.txt).",
+      "parent": "Web Admin Portal (Flask)",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Comma3 Simulator & Protocol Debugging",
+      "purpose": "Documents comma3_simulator.py (Windows Tkinter tool that simulates all five comma3 network ports for offline development), the protocol-debug skill, and how to use the Carrot7706JsonDebugOverlay in the Android app for live packet inspection.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Testing Strategy & Developer Tooling",
+      "purpose": "Overview of the testing pyramid (JUnit 5 + MockK + Google Truth unit tests, instrumented tests), the gen-test AI skill for automated test generation, detekt static analysis configuration, and the atomcode automation hooks.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Unit & Instrumented Tests",
+      "purpose": "Details the test files under app/src/test/ (AmapDataMappingTest, DrivingScoreEngineTest, GeoUtilsTest, NetworkClientTest, ResultTest, ArriveDestinationTest) and the androidTest ExampleInstrumentedTest, including the Given/When/Then pattern and coroutine test helpers.",
+      "parent": "Testing Strategy & Developer Tooling",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Atomcode AI Skills & Automation Hooks",
+      "purpose": "Documents the four atomcode skills (gen-test, protocol-debug, security-reviewer, ui-reviewer), the PostToolUse hooks that auto-run detekt and targeted tests on Kotlin file saves, and the setup-state/signals-hash lifecycle.",
+      "parent": "Testing Strategy & Developer Tooling",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Glossary",
+      "purpose": "Definitions of all codebase-specific terms, abbreviations, and domain concepts that an onboarding engineer needs to know, with code pointers.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    }
+  ]
+}
