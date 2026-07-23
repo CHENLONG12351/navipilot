@@ -44,6 +44,14 @@ data class SelfCheckStatus(
     val completedMessages: Map<String, String> = emptyMap() // 存储组件名称和对应的消息内容
 )
 
+/** 应用页面路由 */
+sealed class Page {
+    /** 主页 */
+    data object Home : Page()
+    /** 自动切换实验配置页 */
+    data object Experiment : Page()
+}
+
 /**
  * 用户数据更新模型（简化版本）
  */
@@ -65,7 +73,7 @@ class MainActivityCore(
         /** 与停车/坐标等共用，保存用户选择的地图/导航源 */
         private const val PREF_CARROT_AMAP = "CarrotAmap"
         private const val KEY_USER_SELECTED_NAV_MODE = "user_selected_nav_mode"
-        private val VALID_USER_NAV_MODES = setOf("AMAP", "AMAP_MOBILE", "OSM")
+        private val VALID_USER_NAV_MODES = setOf("AMAP")
         
         // 🆕 API基础URL配置
         // 优先使用IP方式，失败后切换到网站URL
@@ -89,7 +97,7 @@ class MainActivityCore(
     val usageDurationMinutes = mutableStateOf(0L)
     
     // 页面状态
-    var currentPage by mutableStateOf(0) // 0: 主页, 1: 帮助, 2: 我的, 3: 腾讯导航
+    var currentPage: Page by mutableStateOf(Page.Home)
     
     
     // 存储启动Intent用于页面导航
@@ -98,15 +106,9 @@ class MainActivityCore(
     // 自检查状态
     val selfCheckStatus = mutableStateOf(SelfCheckStatus())
     
-    // 网络连接状态
-    val networkStatus = mutableStateOf("🔍 正在连接...")
-    val deviceInfo = mutableStateOf("")
-    
-    // 地图服务状态 — 三模互斥（默认按高德车机版场景，仍可由广播与定时逻辑切 OSM）
-    val mapServiceType = mutableStateOf("AMAP") // "OSM" / "AMAP" / "AMAP_MOBILE"
-    val activeNavMode = mutableStateOf("AMAP")  // 当前活跃导航模式（三选一）
-    /** 底部切换器上用户选择的模式（与自动广播切换解耦，便于后续逻辑读取） */
-    var userSelectedMode by mutableStateOf("AMAP") // "OSM" / "AMAP" / "AMAP_MOBILE"
+    val activeNavMode = mutableStateOf("AMAP")  // 当前活跃导航模式
+    /** 底部切换器上用户选择的模式 */
+    var userSelectedMode by mutableStateOf("AMAP")
     val lastAmapBroadcastTime = mutableStateOf(0L) // 最后一次接收到高德广播的时间
 
     init {

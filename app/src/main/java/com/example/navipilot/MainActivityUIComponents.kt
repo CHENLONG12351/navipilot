@@ -33,7 +33,6 @@ import com.example.navipilot.CustomIcons
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
-import com.example.navipilot.navigation.CoordinateConverter
 import com.example.navipilot.ui.utils.localized
 import com.example.navipilot.ui.theme.*
 import androidx.compose.ui.semantics.semantics
@@ -114,7 +113,7 @@ object MainActivityUIComponents {
     @Composable
     fun VehicleControlButtons(
         core: MainActivityCore,
-        onPageChange: (Int) -> Unit,
+        onPageChange: (Page) -> Unit,
         onSendCommand: (String, String) -> Unit,
         onSendRoadLimitSpeed: () -> Unit,
         onLaunchAmap: () -> Unit,
@@ -312,7 +311,7 @@ object MainActivityUIComponents {
         onSendRoadLimitSpeed: () -> Unit,
         onLaunchAmap: () -> Unit,
         onSendNavConfirmation: () -> Unit,
-        onPageChange: (Int) -> Unit, // 新增：页面切换回调
+        onPageChange: (Page) -> Unit, // 新增：页面切换回调
         isOpenpilotActive: Boolean,
         carrotManFields: CarrotManFields,
         networkManager: NetworkManager, // 添加networkManager参数用于直接发送坐标
@@ -405,7 +404,7 @@ object MainActivityUIComponents {
                                                 showAboutDialog = true
                                             },
                                             modifier = Modifier
-                                                .size(60.dp)
+                                                .size(64.dp)
                                                 .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = ButtonHelp
@@ -447,7 +446,7 @@ object MainActivityUIComponents {
                                                 onSendCommand("SPEED", newSpeed.toString())
                                             },
                                             modifier = Modifier
-                                                .size(60.dp)
+                                                .size(64.dp)
                                                 .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = ButtonAccel
@@ -507,7 +506,7 @@ object MainActivityUIComponents {
                                                 }
                                             },
                                             modifier = Modifier
-                                                .size(60.dp)
+                                                .size(64.dp)
                                                 .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = if (isOvertakeModeLoading) {
@@ -543,7 +542,7 @@ object MainActivityUIComponents {
                                                 onDismiss()
                                             },
                                             modifier = Modifier
-                                                .size(60.dp)
+                                                .size(64.dp)
                                                 .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = ButtonLaneChange
@@ -575,7 +574,7 @@ object MainActivityUIComponents {
                                         Button(
                                             onClick = { },
                                             modifier = Modifier
-                                                .size(60.dp)
+                                                .size(64.dp)
                                                 .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = Surface500.copy(alpha = 0.3f)
@@ -612,7 +611,7 @@ object MainActivityUIComponents {
                                                 onDismiss()
                                             },
                                             modifier = Modifier
-                                                .size(60.dp)
+                                                .size(64.dp)
                                                 .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = ButtonLaneChange
@@ -643,11 +642,11 @@ object MainActivityUIComponents {
                                     7 -> {
                                         Button(
                                             onClick = {
-                                                onPageChange(0)
+                                                onPageChange(Page.Home)
                                                 onDismiss()
                                             },
                                             modifier = Modifier
-                                                .size(60.dp)
+                                                .size(64.dp)
                                                 .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = ButtonReport
@@ -696,7 +695,7 @@ object MainActivityUIComponents {
                                                 }
                                             },
                                             modifier = Modifier
-                                                .size(60.dp)
+                                                .size(64.dp)
                                                 .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = ButtonDecel
@@ -727,11 +726,11 @@ object MainActivityUIComponents {
                                     9 -> {
                                         Button(
                                             onClick = {
-                                                onPageChange(4) // 切换到自动切换实验页面（原page 5改为page 4）
+                                                onPageChange(Page.Experiment) // 切换到自动切换实验页面
                                                 onDismiss()
                                             },
                                             modifier = Modifier
-                                                .size(60.dp)
+                                                .size(64.dp)
                                                 .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = ButtonExperiment
@@ -1010,25 +1009,22 @@ object MainActivityUIComponents {
     }
     
     /**
-     * 向高德地图车机版发送 POI 导航广播（KEY_TYPE 10038，与 OsmMapView 逻辑一致）
-     * @param destLatWgs84 目的地纬度 WGS84
-     * @param destLonWgs84 目的地经度 WGS84
+     * 向高德地图车机版发送 POI 导航广播（KEY_TYPE 10038）
      */
     fun sendPoiNavigationToAmapAuto(
         context: Context,
         poiName: String,
-        destLatWgs84: Double,
-        destLonWgs84: Double
-    ): Boolean {
-        return try {
+        destLat: Double,
+        destLon: Double
+    ) {
+        try {
             val launched = tryLaunchAmapAutoApp(context)
-            val (gcjLat, gcjLon) = CoordinateConverter.wgs84ToGcj02(destLatWgs84, destLonWgs84)
             val intent = Intent("AUTONAVI_STANDARD_BROADCAST_RECV").apply {
                 putExtra("KEY_TYPE", 10038)
                 putExtra("SOURCE_APP", "Navipilot")
                 putExtra("POINAME", poiName)
-                putExtra("LAT", gcjLat)
-                putExtra("LON", gcjLon)
+                putExtra("LAT", destLat)
+                putExtra("LON", destLon)
                 putExtra("DEV", 0)
                 putExtra("STYLE", 0)
                 setPackage(AMAP_AUTO_PKG)
@@ -1040,13 +1036,11 @@ object MainActivityUIComponents {
                 intent,
                 "✅ 高德车机版 POI 导航已发送: $poiName"
             )
-            true
         } catch (e: Exception) {
             android.util.Log.e("MainActivity", "❌ 高德车机版 POI 准备失败: ${e.message}", e)
-            false
         }
     }
-    
+
     /**
      * 发送回家导航指令给高德地图
      */

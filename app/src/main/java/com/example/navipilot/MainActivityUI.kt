@@ -47,6 +47,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.DisposableEffect
@@ -68,6 +69,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.navipilot.ui.theme.Surface700
 import com.example.navipilot.ui.theme.Surface800
 import com.example.navipilot.ui.theme.Surface900
+import com.example.navipilot.ui.theme.TextSecondary
+import com.example.navipilot.ui.theme.TextTertiary
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -76,14 +79,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.navipilot.ui.components.NavMode
-import com.example.navipilot.ui.components.OsmMapView
 import com.example.navipilot.ui.components.AutoSwitchExperimentPage
 import com.example.navipilot.ui.components.Carrot7706JsonDebugOverlay
+import com.example.navipilot.ui.components.SearchResult
+import com.example.navipilot.ui.components.SearchProvider
+import com.example.navipilot.ui.components.searchPlaces
 import com.example.navipilot.ui.theme.NavipilotTheme
 import com.example.navipilot.ui.utils.localized
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.text.input.ImeAction
 
 /**
  * MainActivity UI组件管理类
@@ -106,45 +121,17 @@ class MainActivityUI(
             Box(modifier = Modifier.fillMaxSize()) {
                 // 拦截返回键：正常返回
                 BackHandler(enabled = true) {
-                    if (core.currentPage != 0) {
-                        core.currentPage = 0
+                    if (core.currentPage !is Page.Home) {
+                        core.currentPage = Page.Home
                     }
                     // 主页时什么都不做，防止退出应用
-                }
-
-                // 导航模式状态：这里展示和选择的是用户偏好的导航地图。
-                var navMode by remember { mutableStateOf(NavMode.AMAP_AUTO) }
-
-                LaunchedEffect(core.userSelectedMode) {
-                    if (core.userSelectedMode == "BAIDU") {
-                        core.userSelectedMode = "AMAP"
-                        core.persistUserSelectedNavMode()
-                    }
-                    // 地图源下拉已不提供 OSM，旧偏好统一为车机高德
-                    if (core.userSelectedMode == "OSM") {
-                        core.userSelectedMode = "AMAP"
-                        core.persistUserSelectedNavMode()
-                    }
-                    navMode = when (core.userSelectedMode) {
-                        "AMAP" -> NavMode.AMAP_AUTO
-                        else -> NavMode.AMAP_AUTO
-                    }
-                }
-
-                // 地图源选择处理：这里只更新偏好，不立即跳转或拉起地图
-                fun handleModeChange(mode: NavMode) {
-                    core.userSelectedMode = when (mode) {
-                        NavMode.AMAP_AUTO -> "AMAP"
-                    }
-                    core.persistUserSelectedNavMode()
-                    navMode = mode
                 }
 
                 // 主内容区域（占满全屏）
                 Box(modifier = Modifier.fillMaxSize()) {
                     // 根据当前页面显示不同内容
                     when (core.currentPage) {
-                        0 -> HomePage(
+                        is Page.Home -> HomePage(
                             userType = core.userType.value,
                             carrotManFields = core.carrotManFields.value,
                             wsConnected = core.wsConnected.value,
@@ -155,13 +142,11 @@ class MainActivityUI(
                             onSendNavConfirmation = { core.sendNavigationConfirmationManually() },
                             onPageChange = { page ->
                                 core.currentPage = page
-                            }, // 传递页面切换回调
-                            navMode = navMode,
-                            onModeChange = { mode -> handleModeChange(mode) }
+                            }
                         )
-                        4 -> AutoSwitchExperimentPage(
+                        is Page.Experiment -> AutoSwitchExperimentPage(
                             onBack = {
-                                core.currentPage = 0
+                                core.currentPage = Page.Home
                             },
                             conditionalExperimentManager = core.getConditionalExperimentManagerSafely(),
                             carrotParamClient = core.getCarrotParamClientSafely(),
@@ -186,9 +171,7 @@ class MainActivityUI(
         onSendRoadLimitSpeed: () -> Unit,
         onLaunchAmap: () -> Unit,
         onSendNavConfirmation: () -> Unit,
-        onPageChange: (Int) -> Unit, // 页面切换回调
-        navMode: NavMode,             // 当前导航模式
-        onModeChange: (NavMode) -> Unit // 切换导航模式回调
+        onPageChange: (Page) -> Unit, // 页面切换回调
     ) {
         val scrollState = rememberScrollState()
         val data by core.xiaogeData
@@ -201,28 +184,32 @@ class MainActivityUI(
         var show7706JsonDebug by remember { mutableStateOf(false) }
         val carrotFieldsLive by core.carrotManFields
 
-        // 接收到高德广播后自动弹出 7706 调试面板（1 秒防抖）
-        LaunchedEffect(core.show7706DebugTrigger.value) {
-            if (core.show7706DebugTrigger.value > 0) {
-                show7706JsonDebug = true
-                kotlinx.coroutines.delay(1000)
-                core.show7706DebugTrigger.value = 0  // 重置，避免重复触发
-            }
-        }
-        val mapContext = LocalContext.current
-
-        // ===== 面板显示用状态（由 OsmMapView 回调更新）=====
-        var homeAddressSet by remember { mutableStateOf(false) }
-        var companyAddressSet by remember { mutableStateOf(false) }
-
         // ===== 动作触发器（面板按钮点击时递增，OsmMapView 监听执行内部逻辑）=====
         var searchShowTrigger by remember { mutableIntStateOf(0) }
         var homeNavTrigger by remember { mutableIntStateOf(0) }
         var homeNavLongTrigger by remember { mutableIntStateOf(0) }
         var companyNavTrigger by remember { mutableIntStateOf(0) }
         var companyNavLongTrigger by remember { mutableIntStateOf(0) }
-        
-        // ===== 地图相关状态 =====
+
+        val mapContext = LocalContext.current
+
+        // ===== 面板显示用状态 =====
+        var homeAddressSet by remember { mutableStateOf(false) }
+        var companyAddressSet by remember { mutableStateOf(false) }
+
+        // 搜索对话框状态
+        var showSearchDialog by remember { mutableStateOf(false) }
+        var searchQuery by remember { mutableStateOf("") }
+        var searchResults by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
+        var isSearching by remember { mutableStateOf(false) }
+        var selectedProvider by remember { mutableStateOf(SearchProvider.GAODE) }
+        var searchServiceName by remember { mutableStateOf("") }
+        val searchScope = rememberCoroutineScope()
+
+        // 监听搜索触发（必须在 showSearchDialog 声明之后）
+        LaunchedEffect(searchShowTrigger) {
+            if (searchShowTrigger > 0) showSearchDialog = true
+        }
         val mapService = core.userSelectedMode
         val gpsAccuracy = carrotManFields.accuracy
         val positionMode = when {
@@ -252,91 +239,21 @@ class MainActivityUI(
             }
         } ?: 0
 
-        // 共享 OsmMapView Composable，消除两处重复调用
-        val osmMapView: @Composable () -> Unit = {
-            OsmMapView(
-                latitude = carrotManFields.vpPosPointLat,
-                longitude = carrotManFields.vpPosPointLon,
-                bearing = carrotManFields.nPosAngle,
-                speedKmh = carrotManFields.vEgoKph.toDouble(),
-                isNavigating = carrotManFields.isNavigating,
-                goalLon = carrotManFields.goalPosX,
-                goalLat = carrotManFields.goalPosY,
-                goalName = carrotManFields.szGoalName,
-                remainDist = carrotManFields.nGoPosDist,
-                remainTime = carrotManFields.nGoPosTime,
-                nextTurnDist = carrotManFields.nTBTDist,
-                nextTurnType = carrotManFields.nTBTTurnType,
-                nextTurnText = carrotManFields.szTBTMainText,
-                laneInfoList = carrotManFields.laneInfoList,
-                trafficState = carrotManFields.trafficLightState,
-                leftSec = carrotManFields.trafficLightCountdown,
-                trafficLightDirection = carrotManFields.amap_traffic_light_dir,
-                isVideoExpanded = isVideoExpanded,
-                onToggleVideo = { isVideoExpanded = !isVideoExpanded },
-                isDataCardExpanded = isDataCardExpanded,
-                onToggleDataCard = { isDataCardExpanded = true },
-                onPageChange = { page -> core.currentPage = page },
-                onOpenAmapMobileEmbeddedNav = {
-                    core.userSelectedMode = "AMAP_MOBILE"
-                    core.persistUserSelectedNavMode()
-                },
-                cruiseSetSpeed = try { carrotManFields.vCruiseKph.toInt() } catch (_: Exception) { 0 },
-                carCruiseSpeed = try { carrotManFields.carcruiseSpeed.toInt() } catch (_: Exception) { 0 },
-                onBlueRingClick = {
-                    MainActivityUIComponents.startSimulatedNavigation(mapContext, carrotManFields)
-                },
-                onGreenRingClick = onLaunchAmap,
-                onHomeNavClick = { MainActivityUIComponents.sendHomeNavigationToAmap(mapContext) },
-                onCompanyNavClick = { MainActivityUIComponents.sendCompanyNavigationToAmap(mapContext) },
-                onShowAdvancedDialog = { showAdvancedDialog = true },
-                isAutopilotActive = carrotManFields.active,
-                mapServiceType = mapService,
-                networkClient = core.getNetworkClientSafely(),
-                carrotManFieldsState = core.carrotManFields,
-                activeNavMode = core.activeNavMode,
-                xiaogeData = data,
-                gpsAccuracy = gpsAccuracy.toFloat(),
-                positionMode = positionMode,
-                commaConnectionState = commaConnectionState,
-                searchShowTrigger = searchShowTrigger,
-                homeNavTrigger = homeNavTrigger,
-                homeNavLongTrigger = homeNavLongTrigger,
-                companyNavTrigger = companyNavTrigger,
-                companyNavLongTrigger = companyNavLongTrigger,
-                onHomeAddressChange = { homeAddressSet = it },
-                onCompanyAddressChange = { companyAddressSet = it },
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-
-        // 地图区 Composable lambda（复用于竖屏/横屏两种布局）
-        val mapZoneContent: @Composable () -> Unit = {
-            osmMapView()
-        }  // 关闭 mapZoneContent Box
-
-        // ===== 上下布局：顶部地图 + 底部控制栏 =====
+        // ===== 垂直布局：数据面板 + 底部控制栏 =====
         val cruiseSetSpeed = try { carrotManFields.vCruiseKph.toInt() } catch (_: Exception) { 0 }
         Column(modifier = Modifier.fillMaxSize()) {
-            // 顶部：地图（占据主要空间）+ 右侧数据面板
+            // 顶部：数据面板（占据主要空间），无地图时纯深色背景
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .background(Surface900)
             ) {
-                mapZoneContent()
-
-                // 右侧数据面板（车道感知、速度环、实验模式等）
+                // 数据面板（居中显示）
                 HomeControlPanel(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .fillMaxHeight()
-                        .width(220.dp),
-                    navMode = navMode,
-                    onModeChange = { mode ->
-                        core.userSelectedMode = "AMAP"
-                        core.persistUserSelectedNavMode()
-                    },
+                        .fillMaxSize()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
                     carrotManFields = carrotManFields,
                     userType = userType,
                     cruiseSetSpeed = cruiseSetSpeed,
@@ -346,13 +263,36 @@ class MainActivityUI(
                     companyAddressSet = companyAddressSet,
                     commaConnectionState = commaConnectionState,
                     onShowAdvancedDialog = { showAdvancedDialog = true },
-                    onPageChange = { page -> core.currentPage = page },
+                    onPageChange = { page: Page -> core.currentPage = page },
                     onSearchClick = { searchShowTrigger++ },
                     onHomeNavClick = { homeNavTrigger++ },
                     onHomeNavLongClick = { homeNavLongTrigger++ },
                     onCompanyNavClick = { companyNavTrigger++ },
                     onCompanyNavLongClick = { companyNavLongTrigger++ },
-                    onLanePanelClick = { show7706JsonDebug = true }
+                    onLanePanelClick = { show7706JsonDebug = true },
+                    vehicleData = data?.let { vd ->
+                        com.example.navipilot.data.VehicleData(
+                            carState = vd.carState?.let { cs ->
+                                com.example.navipilot.data.CarState(
+                                    vEgo = cs.vEgo,
+                                    steeringAngleDeg = cs.steeringAngleDeg,
+                                    leftLatDist = cs.leftLatDist,
+                                    leftBlindspot = cs.leftBlindspot,
+                                    rightBlindspot = cs.rightBlindspot
+                                )
+                            },
+                            modelV2 = vd.modelV2?.let { mv ->
+                                com.example.navipilot.data.ModelV2(
+                                    leadX = mv.lead0?.x ?: 0f,
+                                    leadV = mv.lead0?.v ?: 0f,
+                                    leadProb = mv.lead0?.prob ?: 0f,
+                                    laneLineProbs = mv.laneLineProbs,
+                                    leftDist = mv.meta?.distanceToRoadEdgeLeft ?: 0f,
+                                    rightDist = mv.meta?.distanceToRoadEdgeRight ?: 0f
+                                )
+                            }
+                        )
+                    }
                 )
             }
 
@@ -437,6 +377,135 @@ class MainActivityUI(
                 onDismiss = { show7706JsonDebug = false }
             )
         }
+
+        // 搜索对话框
+        val navHistory = remember { mutableStateOf(loadNavHistory(mapContext)) }
+        if (showSearchDialog) {
+            AlertDialog(
+                onDismissRequest = { showSearchDialog = false; searchQuery = ""; searchResults = emptyList() },
+                title = {
+                    Column {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text(localized("搜索地点...", "Search places..."), fontSize = 13.sp) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = {
+                                if (searchQuery.isNotBlank()) {
+                                    isSearching = true
+                                    searchScope.launch {
+                                        val response = searchPlaces(searchQuery, selectedProvider, mapContext)
+                                        searchResults = response.results
+                                        searchServiceName = response.serviceName
+                                        isSearching = false
+                                    }
+                                }
+                            }),
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { searchQuery = ""; searchResults = emptyList() }) {
+                                        Icon(Icons.Default.Clear, localized("清除", "Clear"), modifier = Modifier.size(22.dp))
+                                    }
+                                }
+                            },
+                            leadingIcon = {
+                                if (isSearching) {
+                                    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Default.Search, localized("搜索", "Search"), modifier = Modifier.size(22.dp))
+                                }
+                            }
+                        )
+                        // 搜索引擎选择
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            SearchProvider.entries.forEach { provider ->
+                                FilterChip(
+                                    selected = selectedProvider == provider,
+                                    onClick = {
+                                        selectedProvider = provider
+                                        searchServiceName = ""
+                                        searchResults = emptyList()
+                                    },
+                                    label = { Text(provider.labelCn, fontSize = 11.sp) },
+                                    leadingIcon = if (selectedProvider == provider) {
+                                        { Icon(Icons.Default.Check, null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                                    } else null
+                                )
+                            }
+                        }
+                    }
+                },
+                text = {
+                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
+                        if (searchResults.isNotEmpty()) {
+                            // 搜索服务标签
+                            if (searchServiceName.isNotEmpty()) {
+                                val badgeColor = when (searchServiceName) {
+                                    "高德地图" -> Color(0xFFFF6B00)
+                                    else -> Color(0xFF10B981)
+                                }
+                                Surface(color = badgeColor.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
+                                    Text("🔍 $searchServiceName", fontSize = 10.sp, color = badgeColor,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                }
+                                Spacer(Modifier.height(4.dp))
+                            }
+                            searchResults.forEach { result ->
+                                ListItem(
+                                    headlineContent = { Text(result.name, fontSize = 13.sp, fontWeight = FontWeight.Medium) },
+                                    supportingContent = { if (result.address.isNotBlank()) Text(result.address, fontSize = 11.sp, maxLines = 1) },
+                                    modifier = Modifier.clickable {
+                                        // 发送导航到高德车机版
+                                        MainActivityUIComponents.sendPoiNavigationToAmapAuto(
+                                            mapContext, result.name, result.lat, result.lon
+                                        )
+                                        saveNavHistory(mapContext, result.name, result.lon, result.lat)
+                                        navHistory.value = loadNavHistory(mapContext)
+                                        showSearchDialog = false
+                                        searchQuery = ""
+                                        searchResults = emptyList()
+                                    }
+                                )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            }
+                        } else if (!isSearching && searchQuery.isNotEmpty()) {
+                            Text(localized("无搜索结果", "No results"), fontSize = 13.sp, color = Color(0xFF94A3B8),
+                                modifier = Modifier.padding(vertical = 20.dp))
+                        } else if (!isSearching && searchQuery.isEmpty() && navHistory.value.isNotEmpty()) {
+                            Text(localized("🕐 最近导航", "🕐 Recent"), fontSize = 11.sp, color = TextSecondary,
+                                fontWeight = FontWeight.Medium, modifier = Modifier.padding(vertical = 4.dp))
+                            navHistory.value.forEach { hist ->
+                                ListItem(
+                                    headlineContent = { Text(hist.name, fontSize = 13.sp, fontWeight = FontWeight.Medium) },
+                                    modifier = Modifier.clickable {
+                                        MainActivityUIComponents.sendPoiNavigationToAmapAuto(mapContext, hist.name, hist.lat, hist.lon)
+                                        saveNavHistory(mapContext, hist.name, hist.lon, hist.lat)
+                                        navHistory.value = loadNavHistory(mapContext)
+                                        showSearchDialog = false
+                                        searchQuery = ""
+                                    }
+                                )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showSearchDialog = false; searchQuery = ""; searchResults = emptyList() }) {
+                        Text(localized("关闭", "Close"))
+                    }
+                },
+                containerColor = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(16.dp)
+            )
+        }
     }
 
     /** 首页控制台：仅圆形图标（无障碍用语见 contentDescription，无底部文字） */
@@ -512,174 +581,97 @@ class MainActivityUI(
         }
     }
 
-    /** 根据当前选中的导航源显示不同图标 */
-    private fun mapSourceButtonIcon(navMode: NavMode): ImageVector = when (navMode) {
-        NavMode.AMAP_AUTO -> CustomIcons.DirectionsCar   // 高德车机版
+    /** 将用户类型数字转为可读文本（与 ProfilePage 一致） */
+    private fun userTypeDisplayName(userType: Int): String = when (userType) {
+        -1 -> localized("管理员", "Admin")
+        0 -> localized("未知用户", "Unknown")
+        1 -> localized("新用户", "New User")
+        2 -> localized("支持者", "Supporter")
+        3 -> localized("赞助者", "Sponsor")
+        4 -> localized("铁粉", "Super Fan")
+        else -> localized("未知类型", "Unknown Type")
     }
 
-    /** 地图源圆形按钮（无底部文字；当前导航源在弹窗中选择） */
     @Composable
-    private fun HomePanelMapSource(
-        modifier: Modifier = Modifier,
-        navMode: NavMode,
-        onClick: () -> Unit
+    private fun CollapsibleCard(
+        title: String,
+        icon: String,
+        initiallyExpanded: Boolean = false,
+        content: @Composable () -> Unit
     ) {
-        val mapDesc = localized("高德车机版", "Amap head unit")
-        Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF334155).copy(alpha = 0.9f))
-                    .clickable { onClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = mapSourceButtonIcon(navMode),
-                    contentDescription = mapDesc,
-                    modifier = Modifier.size(21.dp),
-                    tint = Color(0xFF93C5FD)
-                )
-            }
-        }
-    }
-
-    /** 地图导航源选择弹窗：车机版优先，其次腾讯/高德手机版与谷歌 */
-    @Composable
-    private fun MapNavModePickerDialog(
-        currentMode: NavMode,
-        onDismiss: () -> Unit,
-        onSelect: (NavMode) -> Unit
-    ) {
-        data class RowDef(
-            val mode: NavMode,
-            val title: String,
-            val subtitle: String
-        )
-        val rows = buildList {
-            add(
-                RowDef(
-                    NavMode.AMAP_AUTO,
-                    localized("高德车机版", "Amap head unit"),
-                    localized("与车机版广播联动（推荐）", "Vehicle broadcast integration (recommended)")
-                )
-            )
-        }
-        val defaultMode = NavMode.AMAP_AUTO
-        val hasValidSelection = rows.any { it.mode == currentMode }
-        val effectiveMode = if (hasValidSelection) currentMode else defaultMode
-
-        /** 所有模式均可用 */
-        fun isModeEnabled(mode: NavMode): Boolean = true
-
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+        var expanded by remember { mutableStateOf(initiallyExpanded) }
+        Card(
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = Surface800.copy(alpha = 0.85f)),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(0.78f)
-                    .widthIn(max = 300.dp),
-                shape = RoundedCornerShape(12.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { expanded = !expanded }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = localized("选择地图导航", "Choose navigation map"),
-                            color = Color(0xFF0F172A),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            maxLines = 2,
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(end = 4.dp)
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .clickable(onClick = onDismiss),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = localized("关闭", "Close"),
-                                tint = Color(0xFF64748B),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(icon, fontSize = 12.sp)
+                        Spacer(Modifier.width(4.dp))
+                        Text(title, fontSize = 11.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
                     }
-
-                    // 四个导航源按钮，选中项绿色高亮，不可用项灰色置灰
-                    rows.forEach { row ->
-                        val isSelected = row.mode == effectiveMode
-                        val enabled = isModeEnabled(row.mode)
-
-                        val bgColor = if (isSelected) Color(0xFF22C55E).copy(alpha = 0.15f) else Color(0xFFF1F5F9)
-                        val borderColor = if (isSelected) Color(0xFF22C55E) else Color(0xFFE2E8F0)
-                        val titleColor = if (isSelected) Color(0xFF166534)
-                                        else if (!enabled) Color(0xFF94A3B8)
-                                        else Color(0xFF1E293B)
-                        val subtitleColor = if (isSelected) Color(0xFF22C55E)
-                                           else Color(0xFF64748B)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .border(1.dp, borderColor, RoundedCornerShape(10.dp))
-                                .background(bgColor)
-                                .then(Modifier.clickable { onSelect(row.mode) })
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = row.title,
-                                    color = titleColor,
-                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                                    fontSize = 13.sp,
-                                    maxLines = 1
-                                )
-                                Text(
-                                    text = row.subtitle,
-                                    color = subtitleColor,
-                                    fontSize = 11.sp,
-                                    maxLines = 1
-                                )
-                            }
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = localized("已选择", "Selected"),
-                                    tint = Color(0xFF22C55E),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
+                    Text(
+                        text = if (expanded) "▲" else "▼",
+                        fontSize = 9.sp,
+                        color = TextTertiary
+                    )
+                }
+                AnimatedVisibility(visible = expanded) {
+                    content()
                 }
             }
         }
     }
 
+    private fun saveNavHistory(context: Context, name: String, lon: Double, lat: Double) {
+        val prefs = context.getSharedPreferences("nav_history", Context.MODE_PRIVATE)
+        val existing = prefs.getString("history_json", "[]") ?: "[]"
+        val arr = try { org.json.JSONArray(existing) } catch (_: Exception) { org.json.JSONArray() }
+        val filtered = org.json.JSONArray()
+        for (i in 0 until arr.length()) {
+            val obj = arr.optJSONObject(i) ?: continue
+            val oName = obj.optString("name", "")
+            val oLat = obj.optDouble("lat", 0.0)
+            val oLon = obj.optDouble("lon", 0.0)
+            if (oName == name || (kotlin.math.abs(oLat - lat) < 0.0005 && kotlin.math.abs(oLon - lon) < 0.0005)) continue
+            filtered.put(obj)
+        }
+        val newArr = org.json.JSONArray()
+        newArr.put(org.json.JSONObject().put("name", name).put("lon", lon).put("lat", lat))
+        for (i in 0 until minOf(filtered.length(), 2)) { newArr.put(filtered.getJSONObject(i)) }
+        prefs.edit().putString("history_json", newArr.toString()).apply()
+    }
+
+    private fun loadNavHistory(context: Context): List<SearchResult> {
+        val prefs = context.getSharedPreferences("nav_history", Context.MODE_PRIVATE)
+        val json = prefs.getString("history_json", "[]") ?: "[]"
+        val arr = try { org.json.JSONArray(json) } catch (_: Exception) { return emptyList() }
+        val results = mutableListOf<SearchResult>()
+        for (i in 0 until minOf(arr.length(), 3)) {
+            val obj = arr.optJSONObject(i) ?: continue
+            val name = obj.optString("name", "")
+            val lon = obj.optDouble("lon", 0.0)
+            val lat = obj.optDouble("lat", 0.0)
+            if (name.isNotEmpty() && lon != 0.0 && lat != 0.0) results.add(SearchResult(name, "", lon, lat))
+        }
+        return results
+    }
+
     /**
-     * 首页功能控制面板 - 横屏三栏布局
-     * 上：道路信息+限速+前车 | 中：速度圆环+地图源 | 下：驾驶状态+红绿灯
+     * 首页功能控制面板
      */
     @Composable
     private fun HomeControlPanel(
         modifier: Modifier = Modifier,
-        navMode: NavMode,
-        onModeChange: (NavMode) -> Unit,
         carrotManFields: CarrotManFields,
         userType: Int,
         cruiseSetSpeed: Int,
@@ -689,7 +681,7 @@ class MainActivityUI(
         companyAddressSet: Boolean,
         commaConnectionState: Int = 0,
         onShowAdvancedDialog: () -> Unit,
-        onPageChange: (Int) -> Unit,
+        onPageChange: (Page) -> Unit,
         onSearchClick: () -> Unit,
         onHomeNavClick: () -> Unit,
         onHomeNavLongClick: () -> Unit,
@@ -701,7 +693,6 @@ class MainActivityUI(
     ) {
         val panelContext = LocalContext.current
         val scrollState = rememberScrollState()
-        var showMapModeDialog by remember { mutableStateOf(false) }
 
         // 解析设备端 ExperimentalMode 参数（与旧 SecondarySection 一致）
         fun parseExperimentalMode(value: Any?): Boolean? {
@@ -786,17 +777,6 @@ class MainActivityUI(
             }
         }
 
-        if (showMapModeDialog) {
-            MapNavModePickerDialog(
-                currentMode = navMode,
-                onDismiss = { showMapModeDialog = false },
-                onSelect = { mode ->
-                    onModeChange(mode)
-                    showMapModeDialog = false
-                }
-            )
-        }
-
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -830,7 +810,7 @@ class MainActivityUI(
                     },
                     gpsAccuracy = carrotManFields.accuracy.toFloat(),
                 )
-                // 速度圆环 + 地图切换（直接放在车道卡片下方）
+                // 速度圆环（直接放在车道卡片下方）
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -848,103 +828,134 @@ class MainActivityUI(
                         color = Color(0xFF22C55E),
                         onClick = { onShowAdvancedDialog() }
                     )
-                    HomePanelMapSource(
-                        modifier = Modifier,
-                        navMode = navMode,
-                        onClick = { showMapModeDialog = true }
-                    )
                 }
-                // 实验模式状态徽章
-                val expColor = when (isExperimentalMode) {
-                    true -> Color(0xFF8B5CF6)
-                    false -> Color(0xFF06B6D4)
-                    null -> Color(0xFF475569)
-                }
-                val expLabel = when (isExperimentalMode) {
-                    true -> localized("🧪 实验模式", "🧪 Exp Mode")
-                    false -> localized("❄️ Chill 模式", "❄️ Chill")
-                    null -> localized("⏳ 加载中", "⏳ Loading")
-                }
-                val expSubLabel = when (isExperimentalMode) {
-                    true -> localized("激进策略", "Aggressive")
-                    false -> localized("保守策略", "Conservative")
-                    null -> "--"
-                }
-                Card(
-                    shape = RoundedCornerShape(8.dp),
-                    colors = CardDefaults.cardColors(containerColor = expColor.copy(alpha = 0.12f)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onExperimentClick() }
+                // 实验模式状态徽章（可折叠）
+                CollapsibleCard(
+                    title = localized("实验模式", "Exp Mode"),
+                    icon = "🧪",
+                    initiallyExpanded = false
                 ) {
-                    Row(
+                    val expColor = when (isExperimentalMode) {
+                        true -> Color(0xFF8B5CF6)
+                        false -> Color(0xFF06B6D4)
+                        null -> Color(0xFF475569)
+                    }
+                    val expLabel = when (isExperimentalMode) {
+                        true -> localized("🧪 实验模式", "🧪 Exp Mode")
+                        false -> localized("❄️ Chill 模式", "❄️ Chill")
+                        null -> localized("⏳ 加载中", "⏳ Loading")
+                    }
+                    val expSubLabel = when (isExperimentalMode) {
+                        true -> localized("激进策略", "Aggressive")
+                        false -> localized("保守策略", "Conservative")
+                        null -> "--"
+                    }
+                    Card(
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(containerColor = expColor.copy(alpha = 0.12f)),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 5.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(expLabel, fontSize = 11.sp, color = expColor, fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.width(4.dp))
-                            Text(expSubLabel, fontSize = 9.sp, color = expColor.copy(alpha = 0.7f))
-                        }
-                        Box(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .clip(CircleShape)
-                                .background(expColor.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = when (isExperimentalMode) {
-                                    true -> "🧪"
-                                    false -> "❄️"
-                                    null -> "..."
-                                },
-                                fontSize = 10.sp
-                            )
-                        }
-                    }
-                }
-
-                // 高德车机版红绿灯数据
-                val amapState = carrotManFields.trafficLightState     // -1=无, 0=绿灯, 1=红灯, 2=黄灯
-                val amapCountdown = carrotManFields.trafficLightCountdown // 倒计时秒数
-                val hasAmapData = amapState >= 0 && amapCountdown > 0
-
-                if (hasAmapData) {
-                    // 红绿灯颜色
-                    val tColor = when (amapState) {
-                        0 -> Color(0xFF22C55E)   // 绿灯
-                        1 -> Color(0xFFEF4444)   // 红灯
-                        2 -> Color(0xFFFBBF24)   // 黄灯
-                        else -> Color(0xFF64748B)
-                    }
-                    val tLabel = when (amapState) {
-                        0 -> localized("绿灯", "Green")
-                        1 -> localized("红灯", "Red")
-                        2 -> localized("黄灯", "Yellow")
-                        else -> localized("--", "--")
-                    }
-
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Surface800.copy(alpha = 0.85f)),
-                        modifier = Modifier.fillMaxWidth()
+                            .clickable { onExperimentClick() }
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 高德红绿灯
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(tColor))
-                                Spacer(Modifier.width(3.dp))
-                                Column {
-                                    Text(tLabel, fontSize = 9.sp, color = tColor, fontWeight = FontWeight.Bold)
-                                    Text("${amapCountdown}s", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                Text(expLabel, fontSize = 11.sp, color = expColor, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.width(4.dp))
+                                Text(expSubLabel, fontSize = 9.sp, color = expColor.copy(alpha = 0.7f))
+                            }
+                            Box(
+                                modifier = Modifier.size(20.dp).clip(CircleShape).background(expColor.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = when (isExperimentalMode) { true -> "🧪" false -> "❄️" null -> "..." },
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 导航状态（可折叠）
+                CollapsibleCard(
+                    title = localized("导航状态", "Nav Status"),
+                    icon = "🚗",
+                    initiallyExpanded = true
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                        DrivingStatusPanel(
+                            active = carrotManFields.active,
+                            vEgo = carrotManFields.vEgoKph,
+                            vCruise = try { carrotManFields.vCruiseKph.toInt() } catch (_: Exception) { 0 },
+                            isExperimental = isExperimentalMode,
+                            trafficState = carrotManFields.trafficLightState,
+                            trafficCountdown = carrotManFields.trafficLightCountdown,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                // 道路信息（可折叠）
+                CollapsibleCard(
+                    title = localized("道路信息", "Road Info"),
+                    icon = "🛣️",
+                    initiallyExpanded = false
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                        RoadInfoCard(
+                            roadName = carrotManFields.szPosRoadName,
+                            limitSpeed = carrotManFields.nRoadLimitSpeed,
+                            leadDist = vehicleData?.modelV2?.leadX ?: 0f,
+                            leadProb = vehicleData?.modelV2?.leadProb ?: 0f,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                // 红绿灯信息（有数据时显示，可折叠）
+                val amapState = carrotManFields.trafficLightState
+                val amapCountdown = carrotManFields.trafficLightCountdown
+                val hasAmapData = amapState >= 0 && amapCountdown > 0
+
+                if (hasAmapData) {
+                    CollapsibleCard(
+                        title = localized("红绿灯", "Traffic Light"),
+                        icon = "🚦",
+                        initiallyExpanded = true
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                            val tColor = when (amapState) {
+                                0 -> Color(0xFF22C55E)
+                                1 -> Color(0xFFEF4444)
+                                2 -> Color(0xFFFBBF24)
+                                else -> Color(0xFF64748B)
+                            }
+                            val tLabel = when (amapState) {
+                                0 -> localized("绿灯", "Green")
+                                1 -> localized("红灯", "Red")
+                                2 -> localized("黄灯", "Yellow")
+                                else -> localized("--", "--")
+                            }
+                            Card(
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = Surface800.copy(alpha = 0.85f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(modifier = Modifier.size(14.dp).clip(CircleShape).background(tColor))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(tLabel, fontSize = 14.sp, color = tColor, fontWeight = FontWeight.Bold)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("${amapCountdown}s", fontSize = 16.sp, color = Color.White, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }

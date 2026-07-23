@@ -305,8 +305,7 @@ class MainActivityLifecycle(
                 activity, 
                 core.carrotManFields, 
                 core.networkManager,
-                onBroadcastReceived = { core.markAmapBroadcastReceived() },
-                activeNavMode = core.activeNavMode
+                onBroadcastReceived = { core.markAmapBroadcastReceived() }
             )
             val success = core.amapBroadcastManager.registerReceiver()
 
@@ -460,19 +459,15 @@ class MainActivityLifecycle(
             try {
                 while (isActive) { // 使用isActive检查协程是否被取消
                     try {
-                        val status = core.networkManager.getNetworkConnectionStatus()
                         val connectionStatus = core.networkManager.getConnectionStatus()
                         val deviceInfo = connectionStatus["currentDevice"] as? String ?: ""
                         val isRunning = connectionStatus["isRunning"] as? Boolean ?: false
-                        
-                        core.networkStatus.value = status
-                        core.deviceInfo.value = deviceInfo
                         
                         // 改进日志显示逻辑：只有在网络未运行或明确断开连接时才记录警告
                         // 如果网络正在运行但设备信息为"无连接"，说明只是还没发现设备，这是正常的
                         if (isRunning && deviceInfo == "无连接") {
                             // 网络运行中但还没发现设备，使用VERBOSE级别
-                            Log.v(TAG, "🔍 网络状态监控: $status (运行中，搜索设备...)")
+                            Log.v(TAG, "🔍 网络状态监控 (运行中，搜索设备...)")
                         } else {
                             // 其他情况正常记录
                             //Log.d(TAG, "🌐 网络状态监控: $status, 设备: $deviceInfo")

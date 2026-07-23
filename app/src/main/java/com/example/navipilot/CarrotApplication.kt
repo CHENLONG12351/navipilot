@@ -6,7 +6,6 @@ import android.util.Log
 import com.example.navipilot.core.AppAnalytics
 import com.example.navipilot.core.ErrorReporterInstance
 import com.example.navipilot.core.LocalErrorReporter
-import org.maplibre.android.MapLibre
 
 /**
  * CarrotMap 应用程序类
@@ -23,9 +22,6 @@ class CarrotApplication : Application() {
     
     override fun onCreate() {
         super.onCreate()
-        // MapLibre 单例尽早初始化，保证瓦片 HTTP 层能正确解析包名版 User-Agent，避免首屏地图请求异常
-        MapLibre.getInstance(this)
-
         Log.i(TAG, "🚀 CarrotApplication 初始化...")
         
         // 🔧 修复验证：启用StrictMode（仅Debug版本）

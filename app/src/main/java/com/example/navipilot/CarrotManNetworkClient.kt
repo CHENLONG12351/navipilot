@@ -361,8 +361,6 @@ class CarrotManNetworkClient(
             val receivedData = String(packet.data, 0, packet.length)
             val deviceIP = packet.address.hostAddress ?: "unknown"
 
-            //Log.i(TAG, "📡 收到设备广播: [$receivedData] from $deviceIP")
-            //Log.d(TAG, "📊 当前状态: 已发现设备=${discoveredDevices.size}, 当前连接=${currentTargetDevice?.ip ?: "无"}")
 
             lastDataReceived = System.currentTimeMillis()
             parseDeviceBroadcast(receivedData, deviceIP)
@@ -381,15 +379,12 @@ class CarrotManNetworkClient(
     // 解析收到的设备广播数据
     private fun parseDeviceBroadcast(broadcastData: String, deviceIP: String) {
         try {
-            //Log.i(TAG, "🔍 解析设备广播数据: $broadcastData from $deviceIP")
-            //Log.d(TAG, "📊 解析前状态: 已发现设备=${discoveredDevices.size}, 当前连接=${currentTargetDevice?.ip ?: "无"}")
 
             if (broadcastData.trim().startsWith("{")) {
                 val jsonBroadcast = JSONObject(broadcastData)
 
                 // 检查是否为OpenpPilot状态数据
                 if (isOpenpilotStatusData(jsonBroadcast)) {
-                    //Log.d(TAG, "📡 检测到OpenpPilot状态数据 from $deviceIP")
                     onOpenpilotStatusReceived?.invoke(broadcastData)
 
                     // OpenpPilot状态数据也表示设备存在，需要添加到设备列表
@@ -398,7 +393,6 @@ class CarrotManNetworkClient(
                     val version = "openpilot"
                     val device = DeviceInfo(ip, port, version)
                     addDiscoveredDevice(device)
-                    //Log.d(TAG, "从OpenpPilot状态数据中发现设备: $device")
                     return
                 }
 
@@ -409,10 +403,8 @@ class CarrotManNetworkClient(
                 
                 val device = DeviceInfo(ip, port, version)
                 addDiscoveredDevice(device)
-                //Log.d(TAG, "JSON格式设备信息解析成功: $device")
 
             } else {
-                //Log.d(TAG, "收到简单格式广播，使用默认配置: $deviceIP")
                 val device = DeviceInfo(deviceIP, MAIN_DATA_PORT, "detected")
                 addDiscoveredDevice(device)
             }
@@ -435,7 +427,6 @@ class CarrotManNetworkClient(
         
         val isOpenpilot = hasCarrot2 || hasIsOnroad || hasVEgoKph || hasActive || hasXState
         
-        //Log.d(TAG, "🔍 检查OpenpPilot数据: Carrot2=$hasCarrot2, IsOnroad=$hasIsOnroad, v_ego_kph=$hasVEgoKph, active=$hasActive, xState=$hasXState -> $isOpenpilot")
         
         return isOpenpilot
     }
@@ -444,34 +435,26 @@ class CarrotManNetworkClient(
     private fun addDiscoveredDevice(device: DeviceInfo) {
         val deviceKey = "${device.ip}:${device.port}"
 
-        //Log.d(TAG, "🔍 尝试添加设备: $device, 设备键: $deviceKey")
-        //Log.d(TAG, "📊 当前设备列表: ${discoveredDevices.keys}")
 
         if (!discoveredDevices.containsKey(deviceKey)) {
             discoveredDevices[deviceKey] = device
-            //Log.i(TAG, "🎯 发现新的Comma3设备: $device")
             onDeviceDiscovered?.invoke(device)
 
             // 更新状态为发现设备
             if (currentTargetDevice == null) {
                 Log.i(TAG, "🔄 更新状态: 发现设备 ${device.ip}，正在连接...")
                 onConnectionStatusChanged?.invoke(false, "发现设备 ${device.ip}，正在连接...")
-                //Log.i(TAG, "🚀 自动连接到第一个发现的设备")
                 connectToDevice(device)
         } else {
-                //Log.d(TAG, "⚠️ 已有连接设备 ${currentTargetDevice?.ip}，不自动连接新设备")
             }
         } else {
             discoveredDevices[deviceKey] = device.copy(lastSeen = System.currentTimeMillis())
-            //Log.v(TAG, "🔄 更新设备活跃时间: $deviceKey")
         }
 
-        //Log.d(TAG, "📊 添加后状态: 已发现设备=${discoveredDevices.size}, 当前连接=${currentTargetDevice?.ip ?: "无"}")
     }
     
     // 连接到指定的Comma3设备
     fun connectToDevice(device: DeviceInfo) {
-        //Log.i(TAG, "🔗 开始连接到Comma3设备: $device")
 
         currentTargetDevice = device
         // 重置心跳时间，让心跳任务立即发送第一次心跳
@@ -480,7 +463,6 @@ class CarrotManNetworkClient(
         // 保存连接状态到SharedPreferences
         saveNetworkStatus(true, device.toString())
 
-        //Log.i(TAG, "✅ 更新连接状态: 已连接到设备 ${device.ip}")
         onConnectionStatusChanged?.invoke(true, "")
         Log.i(TAG, "🎉 设备连接建立成功: ${device.ip}")
         
@@ -618,7 +600,6 @@ class CarrotManNetworkClient(
         }
         
         sendDataPacket(heartbeatData)
-        //Log.v(TAG, "心跳包已发送，索引: $carrotIndex")
     }
     
     // 发送CarrotMan导航数据包
@@ -639,14 +620,12 @@ class CarrotManNetworkClient(
         }
 
         // 发送完整导航数据（许可证系统已移除）
-        //Log.d(TAG, "发送完整导航数据")
 
         networkScope.launch {
             try {
                 val jsonData = convertCarrotFieldsToJson(carrotFields)
                 sendDataPacket(jsonData)
                 onDataSent?.invoke(++totalPacketsSent)
-                //Log.v(TAG, "CarrotMan数据包发送成功 #$totalPacketsSent")
             } catch (e: Exception) {
                 // 使用新的错误处理机制
                 handleNetworkError(e, "CarrotMan数据发送")
@@ -749,7 +728,6 @@ class CarrotManNetworkClient(
             // 记录成功发送
             recordSuccessfulSend()
             
-            //Log.v(TAG, "UDP数据包发送成功 -> ${device.ip}:${device.port} (${dataBytes.size} bytes)")
             
         } catch (e: Exception) {
             // 使用新的错误处理机制
@@ -1178,15 +1156,7 @@ class CarrotManNetworkClient(
                             if (currentFields.needsImmediateSend) {
                                 Log.i(TAG, "🚀 立即发送数据包 (限速变化):")
                             } else {
-                                //Log.d(TAG, "📤 准备自动发送数据包:")
                             }
-                            //Log.d(TAG, "   位置: lat=${currentFields.latitude}, lon=${currentFields.longitude}")
-                            //Log.d(TAG, "  🛣️ 道路: ${currentFields.szPosRoadName}")
-                            //Log.d(TAG, "  🚦 限速: ${currentFields.nRoadLimitSpeed}km/h")
-                            //Log.d(TAG, "  🎯 目标: ${currentFields.szGoalName}")
-                            //Log.d(TAG, "  🧭 导航状态: ${currentFields.isNavigating}")
-                            //Log.d(TAG, "  🔄 转向信息: 类型=${currentFields.nTBTTurnType}, 距离=${currentFields.nTBTDist}m, 指令=${currentFields.szTBTMainText}")
-                            //Log.d(TAG, "  🔄 下一转向: 类型=${currentFields.nTBTTurnTypeNext}, 距离=${currentFields.nTBTDistNext}m")
                         }
 
                         sendCarrotManData(currentFields)
@@ -1202,11 +1172,9 @@ class CarrotManNetworkClient(
                             if (currentFields.needsImmediateSend) {
                                 Log.i(TAG, "✅ 立即发送数据包完成 (限速已更新)")
                             } else {
-                                //Log.i(TAG, "✅ 自动发送数据包完成")
                             }
                         }
                     } else {
-                        //Log.v(TAG, "⏸️ 自动发送跳过: enabled=${autoSendEnabled.value}, 时间间隔=${System.currentTimeMillis() - lastSendTime}ms, 立即发送=${currentFields.needsImmediateSend}")
                     }
                     delay(sendInterval)
                 } catch (e: Exception) {
@@ -1232,8 +1200,6 @@ class CarrotManNetworkClient(
                 sendDataPacket(jsonData)
                 totalPacketsSent++
                 
-                //Log.i(TAG, "✅ 自定义数据包发送成功 #$totalPacketsSent")
-                //Log.d(TAG, "📦 数据内容: ${jsonData.toString()}")
                 
                 onDataSent?.invoke(totalPacketsSent)
             } catch (e: Exception) {

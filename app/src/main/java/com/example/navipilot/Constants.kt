@@ -157,7 +157,7 @@ object AppConstants {
         
         // 日志级别控制
         const val ENABLE_VERBOSE_LOGS = false      // 详细日志开关
-        const val ENABLE_DEBUG_LOGS = true         // 调试日志开关
+        const val ENABLE_DEBUG_LOGS = false         // 调试日志开关
     }
     
     // ===============================

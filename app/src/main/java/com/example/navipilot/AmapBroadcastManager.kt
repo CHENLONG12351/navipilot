@@ -29,7 +29,6 @@ class AmapBroadcastManager(
     private val carrotManFields: MutableState<CarrotManFields>,
     private val networkManager: NetworkManager? = null,
     private val onBroadcastReceived: (() -> Unit)? = null, // 收到广播时的回调
-    private val activeNavMode: MutableState<String>? = null // 🆕 三模互斥：当前活跃导航模式
 ) {
     companion object {
         private const val TAG = "AmapBroadcastManager"
@@ -401,7 +400,6 @@ class AmapBroadcastManager(
 
     // 从未识别的广播中提取基础导航信息
     private fun extractBasicNavigationInfo(intent: Intent) {
-        // Log.d(TAG, "🔍 尝试从未识别广播中提取基础导航信息...")
         // 提取常见的导航相关字段
         intent.extras?.let { bundle ->
             var hasUpdate = false
