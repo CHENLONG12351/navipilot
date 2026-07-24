@@ -30,6 +30,8 @@ import kotlinx.coroutines.sync.withLock
 import android.content.pm.PackageManager
 import java.net.HttpURLConnection
 import java.net.URL
+import com.example.navipilot.navigation.NaviWebSocketV2Client
+import com.example.navipilot.navigation.NaviStreamManager
 import org.json.JSONObject
 
 
@@ -248,6 +250,10 @@ class MainActivityCore(
     
     // ===== WebSocket 数据源 =====
     var carrotWsClient: com.example.navipilot.data.CarrotWsClient? = null
+
+    // ===== Carrot Navi v2 WebSocket 客户端（新增） =====
+    var naviV2Client: com.example.navipilot.navigation.NaviWebSocketV2Client? = null
+    var naviStreamManager: com.example.navipilot.navigation.NaviStreamManager? = null
 
     // 车辆数据（兼容 XiaogeVehicleData 结构）
     val xiaogeData = mutableStateOf<XiaogeVehicleData?>(null)

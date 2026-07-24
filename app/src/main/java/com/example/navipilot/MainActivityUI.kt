@@ -269,6 +269,10 @@ class MainActivityUI(
                     onHomeNavLongClick = { homeNavLongTrigger++ },
                     onCompanyNavClick = { companyNavTrigger++ },
                     onCompanyNavLongClick = { companyNavLongTrigger++ },
+                    onSendCommand = onSendCommand,
+                    onSendRoadLimitSpeed = onSendRoadLimitSpeed,
+                    onLaunchAmap = onLaunchAmap,
+                    onSendNavConfirmation = onSendNavConfirmation,
                     onLanePanelClick = { show7706JsonDebug = true },
                     vehicleData = data?.let { vd ->
                         com.example.navipilot.data.VehicleData(
@@ -305,12 +309,16 @@ class MainActivityUI(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 蓝圈：当前车速，点击启动九宫格
+                // 蓝圈：当前车速，点击打开 GitHub 项目页
                 HomePanelSpeedRing(
                     modifier = Modifier,
                     value = carrotManFields.vEgoKph.toInt(),
                     color = Color(0xFF3B82F6),
-                    onClick = { showAdvancedDialog = true }
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/jixiexiaoge/navipilot"))
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        mapContext.startActivity(intent)
+                    }
                 )
                 // 绿圈：设定巡航速度，点击打开7000 Web
                 HomePanelSpeedRing(
@@ -323,14 +331,6 @@ class MainActivityUI(
                         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         mapContext.startActivity(intent)
                     }
-                )
-                // 搜索按钮
-                HomeControlPanelCircleIcon(
-                    modifier = Modifier,
-                    background = Color(0xFF10B981).copy(alpha = 0.9f),
-                    icon = Icons.Default.Search,
-                    contentDescription = localized("搜索", "Search"),
-                    onClick = { searchShowTrigger++ }
                 )
                 // 回家按钮
                 HomeControlPanelEmojiAddress(
@@ -353,27 +353,13 @@ class MainActivityUI(
             }
         }
 
-        // 高阶功能对话框 - 九宫格
-        if (showAdvancedDialog) {
-            MainActivityUIComponents.AdvancedFunctionsDialog(
-                onDismiss = { showAdvancedDialog = false },
-                onSendCommand = onSendCommand,
-                onSendRoadLimitSpeed = onSendRoadLimitSpeed,
-                onLaunchAmap = onLaunchAmap,
-                onSendNavConfirmation = onSendNavConfirmation,
-                onPageChange = onPageChange,
-                isOpenpilotActive = carrotManFields.active,
-                carrotManFields = carrotManFields,
-                networkManager = core.networkManager,
-                context = mapContext
-            )
-        }
-
         // 7706 JSON 调试面板（点击车道盲区面板触发）
         if (show7706JsonDebug) {
             Carrot7706JsonDebugOverlay(
                 fields = carrotFieldsLive,
                 networkClient = core.getNetworkClientSafely(),
+                v2ClientSnapshot = core.naviV2Client?.debugSnapshot(),
+                v2StreamSnapshot = core.naviStreamManager?.debugSnapshot(),
                 onDismiss = { show7706JsonDebug = false }
             )
         }
@@ -687,6 +673,10 @@ class MainActivityUI(
         onHomeNavLongClick: () -> Unit,
         onCompanyNavClick: () -> Unit,
         onCompanyNavLongClick: () -> Unit,
+        onSendCommand: (String, String) -> Unit = { _, _ -> },
+        onSendRoadLimitSpeed: () -> Unit = {},
+        onLaunchAmap: () -> Unit = {},
+        onSendNavConfirmation: () -> Unit = {},
         vehicleData: com.example.navipilot.data.VehicleData? = null,
         deviceStatus: com.example.navipilot.data.DeviceStatus? = null,
         onLanePanelClick: () -> Unit = {},
@@ -788,52 +778,11 @@ class MainActivityUI(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 顶部：车道线 + 盲区动态面板（点击打开 7706 调试）
-                LaneBlindspotPanel(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(90.dp)
-                        .clickable { onLanePanelClick() },
-                    laneLineProbs = vehicleData?.modelV2?.laneLineProbs ?: emptyList(),
-                    leftDist = vehicleData?.modelV2?.leftDist ?: 0f,
-                    rightDist = vehicleData?.modelV2?.rightDist ?: 0f,
-                    leftBlindspot = vehicleData?.carState?.leftBlindspot ?: false,
-                    rightBlindspot = vehicleData?.carState?.rightBlindspot ?: false,
-                    leftLatDist = vehicleData?.carState?.leftLatDist ?: 0f,
-                    leadX = vehicleData?.modelV2?.leadX ?: 0f,
-                    leadProb = vehicleData?.modelV2?.leadProb ?: 0f,
-                    // 新增：GPS 定位精度
-                    positionMode = when {
-                        carrotManFields.accuracy < 3.0 -> "RTK"
-                        carrotManFields.accuracy < 10.0 -> "DGPS"
-                        else -> "GPS"
-                    },
-                    gpsAccuracy = carrotManFields.accuracy.toFloat(),
-                )
-                // 速度圆环（直接放在车道卡片下方）
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    HomePanelSpeedRing(
-                        modifier = Modifier,
-                        value = cruiseSetSpeed,
-                        color = Color(0xFF2196F3),
-                        onClick = onCruiseSetClick
-                    )
-                    HomePanelSpeedRing(
-                        modifier = Modifier,
-                        value = carrotManFields.vEgoKph,
-                        color = Color(0xFF22C55E),
-                        onClick = { onShowAdvancedDialog() }
-                    )
-                }
-                // 实验模式状态徽章（可折叠）
-                CollapsibleCard(
-                    title = localized("实验模式", "Exp Mode"),
-                    icon = "🧪",
-                    initiallyExpanded = false
+                // 实验模式（始终展开）
+                Card(
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = Surface800.copy(alpha = 0.85f)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     val expColor = when (isExperimentalMode) {
                         true -> Color(0xFF8B5CF6)
@@ -881,32 +830,13 @@ class MainActivityUI(
                     }
                 }
 
-                // 导航状态（可折叠）
-                CollapsibleCard(
-                    title = localized("导航状态", "Nav Status"),
-                    icon = "🚗",
-                    initiallyExpanded = true
+                // 道路信息（始终展开）
+                Card(
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = Surface800.copy(alpha = 0.85f)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
-                        DrivingStatusPanel(
-                            active = carrotManFields.active,
-                            vEgo = carrotManFields.vEgoKph,
-                            vCruise = try { carrotManFields.vCruiseKph.toInt() } catch (_: Exception) { 0 },
-                            isExperimental = isExperimentalMode,
-                            trafficState = carrotManFields.trafficLightState,
-                            trafficCountdown = carrotManFields.trafficLightCountdown,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                // 道路信息（可折叠）
-                CollapsibleCard(
-                    title = localized("道路信息", "Road Info"),
-                    icon = "🛣️",
-                    initiallyExpanded = false
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                    Column(modifier = Modifier.padding(8.dp)) {
                         RoadInfoCard(
                             roadName = carrotManFields.szPosRoadName,
                             limitSpeed = carrotManFields.nRoadLimitSpeed,
@@ -917,16 +847,16 @@ class MainActivityUI(
                     }
                 }
 
-                // 红绿灯信息（有数据时显示，可折叠）
+                // 红绿灯信息（有数据时显示，始终展开）
                 val amapState = carrotManFields.trafficLightState
                 val amapCountdown = carrotManFields.trafficLightCountdown
                 val hasAmapData = amapState >= 0 && amapCountdown > 0
 
                 if (hasAmapData) {
-                    CollapsibleCard(
-                        title = localized("红绿灯", "Traffic Light"),
-                        icon = "🚦",
-                        initiallyExpanded = true
+                    Card(
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(containerColor = Surface800.copy(alpha = 0.85f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
                             val tColor = when (amapState) {
@@ -959,6 +889,30 @@ class MainActivityUI(
                                 }
                             }
                         }
+                    }
+                }
+
+                // 高级功能（嵌入到主页面板）
+                Card(
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = Surface800.copy(alpha = 0.85f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        MainActivityUIComponents.AdvancedFunctionsContent(
+                            onSendCommand = onSendCommand,
+                            onSendRoadLimitSpeed = onSendRoadLimitSpeed,
+                            onLaunchAmap = onLaunchAmap,
+                            onSendNavConfirmation = onSendNavConfirmation,
+                            onPageChange = onPageChange,
+                            isOpenpilotActive = carrotManFields.active,
+                            carrotManFields = carrotManFields,
+                            networkManager = core.networkManager,
+                            context = panelContext,
+                            onDismiss = null,
+                            onSearchClick = { onSearchClick() },
+                            onShow7706Debug = { onLanePanelClick() },
+                        )
                     }
                 }
 

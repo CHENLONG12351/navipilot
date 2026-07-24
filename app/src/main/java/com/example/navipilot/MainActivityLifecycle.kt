@@ -18,6 +18,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
+import com.example.navipilot.navigation.NaviWebSocketV2Client
+import com.example.navipilot.navigation.NaviStreamManager
+
 /**
  * MainActivity生命周期管理类
  * 负责Activity生命周期管理、初始化流程、自检查等
@@ -239,6 +242,15 @@ class MainActivityLifecycle(
                         Log.i(TAG, "✅ WebSocket 客户端已停止")
                     } catch (e: Exception) {
                         Log.w(TAG, "⚠️ 停止 WebSocket 客户端失败: ${e.message}")
+                    }
+                    
+                    // 停止 Carrot Navi v2 客户端
+                    try {
+                        core.naviStreamManager?.stop()
+                        core.naviV2Client?.stop()
+                        Log.i(TAG, "✅ Carrot Navi v2 客户端已停止")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "⚠️ 停止 Navi v2 客户端失败: ${e.message}")
                     }
                     
                     // 清理HTTP参数客户端
@@ -755,6 +767,12 @@ class MainActivityLifecycle(
                     updateSelfCheckStatusAsync("自动超车管理器", "初始化失败: ${e.message}", false)
                 }
                 delay(50)
+
+                // 13.5. 初始化 Carrot Navi v2 WebSocket 客户端（与旧版 UDP 共存）
+                updateSelfCheckStatusAsync("Navi v2 连接", "正在初始化...", false)
+                initializeNaviV2Client()
+                updateSelfCheckStatusAsync("Navi v2 连接", "初始化完成", true)
+                delay(50)
                 
                 // 13.5. [已移除] 驾驶评分数据采集器（模块暂未恢复）
                 updateSelfCheckStatusAsync("驾驶评分系统", "模块暂未加载", false)
@@ -899,6 +917,100 @@ class MainActivityLifecycle(
         } catch (e: Exception) {
             Log.e(TAG, "❌ WebSocket 客户端初始化失败: ${e.message}")
             updateSelfCheckStatusAsync("车辆数据连接", "初始化失败: ${e.message}", false)
+        }
+    }
+
+    /** Navi v2 数据推送协程 */
+    private var naviV2SendJob: Job? = null
+
+    /**
+     * 初始化 Carrot Navi v2 WebSocket 客户端
+     * 与旧版 UDP NetworkManager 共存，旧版 UDP 通道不受影响
+     */
+    private fun initializeNaviV2Client() {
+        try {
+            val v2Client = NaviWebSocketV2Client()
+            core.naviV2Client = v2Client
+
+            val streamManager = NaviStreamManager(v2Client)
+            core.naviStreamManager = streamManager
+
+            // 监听会话就绪事件 → 启动流管理器 + 数据推送
+            v2Client.onSessionReady = { session ->
+                Log.i(TAG, "✅ Navi v2 会话就绪: ${session.sessionId}")
+                lifecycleScope.launch {
+                    streamManager.start()
+                    startNaviV2DataPush() // 启动数据推送协程
+                    core.addPipelineEvent("Navi v2 已连接")
+                }
+            }
+
+            v2Client.onStateChanged = { state ->
+                Log.d(TAG, "Navi v2 状态: $state")
+            }
+
+            v2Client.onError = { error ->
+                Log.e(TAG, "Navi v2 错误: $error")
+            }
+
+            // ★ 关键：从 NetworkManager 获取设备 IP 后启动 v2 客户端
+            // 复用现有设备发现机制，无需额外 UDP 监听
+            val currentDeviceIp = try {
+                core.networkManager.getCurrentDeviceIP()
+            } catch (_: Exception) { null }
+
+            if (currentDeviceIp != null && currentDeviceIp.isNotEmpty()) {
+                v2Client.setTarget(currentDeviceIp)
+                v2Client.start()
+                Log.i(TAG, "🚀 Navi v2 客户端已启动: $currentDeviceIp")
+            } else {
+                Log.w(TAG, "⏳ 设备 IP 未就绪，v2 客户端等待发现...")
+                // 监听 NetworkManager 设备发现
+                core.networkManager.setOnDeviceIPUpdated { deviceIP ->
+                    if (deviceIP.isNotEmpty() && core.naviV2Client != null) {
+                        core.naviV2Client!!.setTarget(deviceIP)
+                        core.naviV2Client!!.start()
+                        Log.i(TAG, "🚀 Navi v2 客户端已启动 (设备发现): $deviceIP")
+                    }
+                }
+            }
+
+            Log.i(TAG, "✅ Navi v2 客户端初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Navi v2 客户端初始化失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 启动 Navi v2 数据推送协程
+     * 周期性读取 CarrotManFields，通过 v2 StreamManager 发送到 CarrotPilot
+     */
+    private fun startNaviV2DataPush() {
+        naviV2SendJob?.cancel()
+        naviV2SendJob = lifecycleScope.launch(Dispatchers.IO) {
+            Log.i(TAG, "🚀 Navi v2 数据推送已启动")
+            var lastFields = core.carrotManFields.value
+            while (isActive) {
+                delay(NaviStreamManager.Companion.CHECK_INTERVAL_MS)
+                val fields = core.carrotManFields.value
+                val msgr = core.naviStreamManager ?: continue
+                if (!core.naviV2Client?.isReady()!!) continue
+
+                // 增量推送：仅当数据有变化时才发送
+                if (fields != lastFields) {
+                    msgr.sendVehicle(fields)
+                    msgr.sendGuidanceCurrent(fields)
+                    msgr.sendGuidanceNext(fields)
+                    msgr.sendNavigationStatus(fields)
+                    msgr.sendRoute(fields)
+                    msgr.sendSpeed(fields)
+                    msgr.sendTrafficSignal(fields)
+                    msgr.sendLaneCurrent(fields)
+                    msgr.sendLaneAhead(fields)
+                    msgr.sendAppStatus(false) // foreground 由 UI 状态触发
+                    lastFields = fields
+                }
+            }
         }
     }
 

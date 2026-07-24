@@ -302,24 +302,24 @@ object MainActivityUIComponents {
     }
 
     /**
-     * 高阶功能弹窗 - 3x3 九宫格（1=帮助，7=报告，2/8 加减速，3 超车，4/6 变道，5 控速占位，9 实验）
+     * 高级功能内容（九宫格 + 超车参数）— 可同时用于弹窗和主页卡片
      */
     @Composable
-    fun AdvancedFunctionsDialog(
-        onDismiss: () -> Unit,
+    fun AdvancedFunctionsContent(
         onSendCommand: (String, String) -> Unit,
         onSendRoadLimitSpeed: () -> Unit,
         onLaunchAmap: () -> Unit,
         onSendNavConfirmation: () -> Unit,
-        onPageChange: (Page) -> Unit, // 新增：页面切换回调
+        onPageChange: (Page) -> Unit,
         isOpenpilotActive: Boolean,
         carrotManFields: CarrotManFields,
-        networkManager: NetworkManager, // 添加networkManager参数用于直接发送坐标
-        context: android.content.Context
+        networkManager: NetworkManager,
+        context: android.content.Context,
+        onDismiss: (() -> Unit)? = null,
+        onSearchClick: (() -> Unit)? = null,    // 搜索回调
+        onShow7706Debug: (() -> Unit)? = null,  // 7706 调试面板回调
     ) {
-        // 关于弹窗状态
         var showAboutDialog by remember { mutableStateOf(false) }
-        // 🆕 通用音频播放函数 - 减少重复代码
         fun playSound(resourceId: Int, soundName: String) {
             try {
                 MediaPlayer.create(context, resourceId)?.apply {
@@ -336,493 +336,204 @@ object MainActivityUIComponents {
                 android.util.Log.e("MainActivity", "❌ 播放${soundName}提示音失败: ${e.message}", e)
             }
         }
-        
-        // 智能控速模式状态：0=智能控速, 1=原车巡航, 2=弯道减速
-        var speedControlMode by remember { 
+
+        var speedControlMode by remember {
             mutableStateOf(
                 context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
                     .getInt("speed_from_pcm_mode", 0)
-            ) 
+            )
         }
         var isSpeedModeLoading by remember { mutableStateOf(false) }
-        
-        // 🆕 超车模式状态：0=禁止超车, 1=拨杆超车, 2=自动超车（默认值0）
-        var overtakeMode by remember { 
+
+        var overtakeMode by remember {
             mutableStateOf(
                 context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
-                    .getInt("overtake_mode", 1)  // 默认值改为 1（拨杆超车）
-            ) 
+                    .getInt("overtake_mode", 1)
+            )
         }
         var isOvertakeModeLoading by remember { mutableStateOf(false) }
-        
-        val coroutineScope = rememberCoroutineScope()
-        // 计算弹窗宽度：九宫格宽度（60dp * 3 + 10dp * 2 = 200dp）+ 左右padding（12dp * 2 = 24dp）= 224dp
-        val dialogWidth = 60.dp * 3 + 10.dp * 2 + 12.dp * 2  // 200dp + 24dp = 224dp
 
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = onDismiss
-        ) {
+        val coroutineScope = rememberCoroutineScope()
+
+        Column {
+            // 标题栏（主页模式用小标题、弹窗模式用大标题）
+            Text(
+                text = localized("高级功能", "Advanced"),
+                fontSize = if (onDismiss == null) 14.sp else 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                textAlign = if (onDismiss == null) androidx.compose.ui.text.style.TextAlign.Start else androidx.compose.ui.text.style.TextAlign.Center
+            )
+            // 3x3 九宫格按钮区域
             Card(
-                modifier = Modifier
-                    .width(dialogWidth)
-                    .wrapContentHeight()
-                    .padding(0.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = DialogBackground
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Surface800.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier.padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 标题栏
-                    Text(
-                        text = localized("高级功能", "Advanced"),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 4.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                    // 3x3 九宫格按钮
                     for (row in 0..2) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            for (col in 0..2) {
-                                val buttonNumber = row * 3 + col + 1
-                                
-                                when (buttonNumber) {
-                                    // 1号按钮 - 关于（显示应用信息）
-                                    1 -> {
-                                        Button(
-                                            onClick = {
-                                                showAboutDialog = true
-                                            },
-                                            modifier = Modifier
-                                                .size(64.dp)
-                                                .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = ButtonHelp
-                                            ),
-                                            contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Info,
-                                                    contentDescription = "关于",
-                                                    modifier = Modifier.size(24.dp),
-                                                    tint = Color.White
-                                                )
-                                                Text(
-                                                    text = localized("关于", "About"),
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
-                                    }
-                                    // 2号按钮 - 加速（绿色）
-                                    2 -> {
-                                        val currentCruiseSpeed = carrotManFields.vCruiseKph.toInt()
-                                        val newSpeed = if (currentCruiseSpeed > 0) {
-                                            minOf(currentCruiseSpeed + 10, 150)
-                                        } else {
-                                            50
-                                        }
-
-                                        Button(
-                                            onClick = {
-                                                android.util.Log.i("MainActivity", "🎮 高阶弹窗：用户点击加速按钮")
-                                                onSendCommand("SPEED", newSpeed.toString())
-                                            },
-                                            modifier = Modifier
-                                                .size(64.dp)
-                                                .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = ButtonAccel
-                                            ),
-                                            contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.KeyboardArrowUp,
-                                                    contentDescription = "加速",
-                                                    modifier = Modifier.size(24.dp),
-                                                    tint = Color.White
-                                                )
-                                                Text(
-                                                    text = localized("加速", "Accel"),
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
-                                    }
-                                    // 3号按钮 - 超车模式切换
-                                    3 -> {
-                                        val overtakeModeNames = arrayOf(localized("禁止\n超车", "No\nOvertake"), localized("拨杆\n超车", "Signal\nOvertake"), localized("自动\n超车", "Auto\nOvertake"))
-                                        val overtakeModeColors = arrayOf(
-                                            OvertakeDisabled,
-                                            OvertakeManual,
-                                            OvertakeAuto
-                                        )
-
-                                        Button(
-                                            onClick = {
-                                                if (!isOvertakeModeLoading) {
-                                                    isOvertakeModeLoading = true
-                                                    coroutineScope.launch {
-                                                        android.util.Log.d("MainActivity", "🔧 超车模式切换：当前模式=$overtakeMode")
-
-                                                        val nextMode = (overtakeMode + 1) % 3
-
-                                                        android.util.Log.d("MainActivity", "🔧 超车模式切换：下一模式=$nextMode")
-
-                                                        // 保存到CarrotAmap SharedPreferences
-                                                        val prefs = context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
-                                                        prefs.edit()
-                                                            .putInt("overtake_mode", nextMode)
-                                                            .apply()
-
-                                                        kotlinx.coroutines.delay(300)
-                                                        overtakeMode = nextMode
-                                                        isOvertakeModeLoading = false
-                                                    }
-                                                }
-                                            },
-                                            modifier = Modifier
-                                                .size(64.dp)
-                                                .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = if (isOvertakeModeLoading) {
-                                                    Surface500
-                                                } else {
-                                                    overtakeModeColors[overtakeMode]
-                                                }
-                                            ),
-                                            contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
-                                            enabled = !isOvertakeModeLoading
-                                        ) {
-                                            Text(
-                                                text = if (isOvertakeModeLoading) {
-                                                    localized("切换\n中...", "Switch\ning...")
-                                                } else {
-                                                    overtakeModeNames[overtakeMode]
-                                                },
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White,
-                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                                lineHeight = 12.sp
-                                            )
-                                        }
-                                    }
-                                    // 4号按钮 - 左变道
-                                    4 -> {
-                                        Button(
-                                            onClick = {
-                                                playSound(R.raw.left, "左变道")
-                                                onSendCommand("LANECHANGE", "LEFT")
-                                                onDismiss()
-                                            },
-                                            modifier = Modifier
-                                                .size(64.dp)
-                                                .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = ButtonLaneChange
-                                            ),
-                                            contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.KeyboardArrowLeft,
-                                                    contentDescription = "左变道",
-                                                    modifier = Modifier.size(24.dp),
-                                                    tint = Color.White
-                                                )
-                                                Text(
-                                                    text = localized("变道", "Lane"),
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
-                                    }
-                                    // 5号按钮 - 已移除（智能控速）
-                                    5 -> {
-                                        Button(
-                                            onClick = { },
-                                            modifier = Modifier
-                                                .size(64.dp)
-                                                .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = Surface500.copy(alpha = 0.3f)
-                                            ),
-                                            contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
-                                            enabled = false
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = CustomIcons.Speed,
-                                                    contentDescription = "控速",
-                                                    modifier = Modifier.size(24.dp),
-                                                    tint = Color.White.copy(alpha = 0.5f)
-                                                )
-                                                Text(
-                                                    text = localized("控速", "Speed"),
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White.copy(alpha = 0.5f)
-                                                )
-                                            }
-                                        }
-                                    }
-                                    // 6号按钮 - 右变道
-                                    6 -> {
-                                        Button(
-                                            onClick = {
-                                                playSound(R.raw.right, "右变道")
-                                                onSendCommand("LANECHANGE", "RIGHT")
-                                                onDismiss()
-                                            },
-                                            modifier = Modifier
-                                                .size(64.dp)
-                                                .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = ButtonLaneChange
-                                            ),
-                                            contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.KeyboardArrowRight,
-                                                    contentDescription = "右变道",
-                                                    modifier = Modifier.size(24.dp),
-                                                    tint = Color.White
-                                                )
-                                                Text(
-                                                    text = localized("变道", "Lane"),
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
-                                    }
-                                    // 7号按钮 - 主页
-                                    7 -> {
-                                        Button(
-                                            onClick = {
-                                                onPageChange(Page.Home)
-                                                onDismiss()
-                                            },
-                                            modifier = Modifier
-                                                .size(64.dp)
-                                                .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = ButtonReport
-                                            ),
-                                            contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Home,
-                                                    contentDescription = "主页",
-                                                    modifier = Modifier.size(24.dp),
-                                                    tint = Color.White
-                                                )
-                                                Text(
-                                                    text = localized("主页", "Home"),
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
-                                    }
-                                    // 8号按钮 - 减速
-                                    8 -> {
-                                        val currentCruiseSpeed = carrotManFields.vCruiseKph.toInt()
-                                        val newSpeed = if (currentCruiseSpeed > 20) {
-                                            maxOf(currentCruiseSpeed - 10, 20)
-                                        } else {
-                                            currentCruiseSpeed
-                                        }
-
-                                        Button(
-                                            onClick = {
-                                                if (newSpeed < currentCruiseSpeed) {
-                                                    onSendCommand("SPEED", newSpeed.toString())
-                                                } else {
-                                                    android.widget.Toast.makeText(
-                                                        context,
-                                                        localized("⚠️ 已是最低速度（${currentCruiseSpeed}km/h）", "⚠️ Already at minimum speed (${currentCruiseSpeed}km/h)"),
-                                                        android.widget.Toast.LENGTH_SHORT
-                                                    ).show()
-                                                }
-                                            },
-                                            modifier = Modifier
-                                                .size(64.dp)
-                                                .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = ButtonDecel
-                                            ),
-                                            contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.KeyboardArrowDown,
-                                                    contentDescription = "减速",
-                                                    modifier = Modifier.size(24.dp),
-                                                    tint = Color.White
-                                                )
-                                                Text(
-                                                    text = localized("减速", "Decel"),
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
-                                    }
-                                    // 9号按钮 - 自动切换实验
-                                    9 -> {
-                                        Button(
-                                            onClick = {
-                                                onPageChange(Page.Experiment) // 切换到自动切换实验页面
-                                                onDismiss()
-                                            },
-                                            modifier = Modifier
-                                                .size(64.dp)
-                                                .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = ButtonExperiment
-                                            ),
-                                            contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = CustomIcons.BugReport,
-                                                    contentDescription = "实验",
-                                                    modifier = Modifier.size(24.dp),
-                                                    tint = Color.White
-                                                )
-                                                Text(
-                                                    text = localized("实验", "Exp"),
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
-                                    }
-                                    // 其他未定义的按钮（应该不会出现，因为1-9都已定义）
-                                    else -> {
-                                        Button(
-                                            onClick = {
-                                                onDismiss()
-                                            },
-                                            modifier = Modifier.size(56.dp),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFF94A3B8)
-                                            ),
-                                            contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
-                                        ) {
-                                            Text(
-                                                text = "$buttonNumber",
-                                                fontSize = 16.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-                                        }
+                    for (col in 0..2) {
+                        val buttonNumber = row * 3 + col + 1
+                        when (buttonNumber) {
+                            1 -> {
+                                Button(
+                                    onClick = { showAboutDialog = true },
+                                    modifier = Modifier.size(64.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = ButtonHelp),
+                                    contentPadding = PaddingValues(0.dp),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Icon(Icons.Default.Info, "关于", Modifier.size(24.dp), tint = Color.White)
+                                        Text(localized("关于", "About"), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                     }
                                 }
                             }
+                            2 -> {
+                                val currentCruiseSpeed = carrotManFields.vCruiseKph.toInt()
+                                val newSpeed = if (currentCruiseSpeed > 0) minOf(currentCruiseSpeed + 10, 150) else 50
+                                Button(
+                                    onClick = { onSendCommand("SPEED", newSpeed.toString()) },
+                                    modifier = Modifier.size(64.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = ButtonAccel),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Icon(Icons.Default.KeyboardArrowUp, "加速", Modifier.size(24.dp), tint = Color.White)
+                                        Text(localized("加速", "Accel"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                            3 -> {
+                                val overtakeModeNames = arrayOf(localized("禁止\n超车", "No\nOvertake"), localized("拨杆\n超车", "Signal\nOvertake"), localized("自动\n超车", "Auto\nOvertake"))
+                                val overtakeModeColors = arrayOf(OvertakeDisabled, OvertakeManual, OvertakeAuto)
+                                Button(
+                                    onClick = {
+                                        if (!isOvertakeModeLoading) {
+                                            isOvertakeModeLoading = true
+                                            coroutineScope.launch {
+                                                val nextMode = (overtakeMode + 1) % 3
+                                                context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE).edit().putInt("overtake_mode", nextMode).apply()
+                                                kotlinx.coroutines.delay(300)
+                                                overtakeMode = nextMode
+                                                isOvertakeModeLoading = false
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.size(64.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (isOvertakeModeLoading) Surface500 else overtakeModeColors[overtakeMode]),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp),
+                                    enabled = !isOvertakeModeLoading
+                                ) {
+                                    Text(if (isOvertakeModeLoading) localized("切换\n中...", "Switch\ning...") else overtakeModeNames[overtakeMode],
+                                        fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = androidx.compose.ui.text.style.TextAlign.Center, lineHeight = 12.sp)
+                                }
+                            }
+                            4 -> {
+                                Button(
+                                    onClick = { playSound(R.raw.left, "左变道"); onSendCommand("LANECHANGE", "LEFT"); onDismiss?.invoke() },
+                                    modifier = Modifier.size(64.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = ButtonLaneChange),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Icon(Icons.Default.KeyboardArrowLeft, "左变道", Modifier.size(24.dp), tint = Color.White)
+                                        Text(localized("变道", "Lane"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                            5 -> {
+                                Button(
+                                    onClick = { onSearchClick?.invoke(); onDismiss?.invoke() },
+                                    modifier = Modifier.size(64.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Icon(Icons.Default.Search, "搜索", Modifier.size(24.dp), tint = Color.White)
+                                        Text(localized("搜索", "Search"), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                            6 -> {
+                                Button(
+                                    onClick = { playSound(R.raw.right, "右变道"); onSendCommand("LANECHANGE", "RIGHT"); onDismiss?.invoke() },
+                                    modifier = Modifier.size(64.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = ButtonLaneChange),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Icon(Icons.Default.KeyboardArrowRight, "右变道", Modifier.size(24.dp), tint = Color.White)
+                                        Text(localized("变道", "Lane"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                            7 -> {
+                                Button(
+                                    onClick = { onShow7706Debug?.invoke(); onDismiss?.invoke() },
+                                    modifier = Modifier.size(64.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Icon(Icons.Default.Info, "调试", Modifier.size(24.dp), tint = Color.White)
+                                        Text(localized("调试", "Debug"), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                            8 -> {
+                                val currentCruiseSpeed = carrotManFields.vCruiseKph.toInt()
+                                val newSpeed = if (currentCruiseSpeed > 20) maxOf(currentCruiseSpeed - 10, 20) else currentCruiseSpeed
+                                Button(
+                                    onClick = {
+                                        if (newSpeed < currentCruiseSpeed) onSendCommand("SPEED", newSpeed.toString())
+                                        else android.widget.Toast.makeText(context, localized("⚠️ 已是最低速度（${currentCruiseSpeed}km/h）", "⚠️ Already at minimum speed (${currentCruiseSpeed}km/h)"), android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(64.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = ButtonDecel),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Icon(Icons.Default.KeyboardArrowDown, "减速", Modifier.size(24.dp), tint = Color.White)
+                                        Text(localized("减速", "Decel"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                            9 -> {
+                                Button(
+                                    onClick = { onPageChange(Page.Experiment); onDismiss?.invoke() },
+                                    modifier = Modifier.size(64.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = ButtonExperiment),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Icon(CustomIcons.BugReport, "实验", Modifier.size(24.dp), tint = Color.White)
+                                        Text(localized("实验", "Exp"), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                            else -> {}
                         }
                     }
+                }
+            }
+                } // Column
+            } // Card
 
-                    // 🆕 超车参数调节区域（仅当超车模式不为0时显示）
-                    if (overtakeMode != 0) {
-                    HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 4.dp),
-                        color = Surface600,
-                        thickness = 1.dp
-                    )
-                    
-                    // 参数调节区域（紧凑布局）
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                                .padding(horizontal = 6.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        // 参数1：最小超车速度
-                        OvertakeParameterRow(
-                            label = localized("最小超车速度", "Min Overtake Speed"),
-                                unit = "",
-                            defaultValue = 70f,
-                            minValue = 50f,
-                            maxValue = 120f,
-                            step = 5f,
-                            prefKey = "overtake_param_min_speed_kph",
-                            context = context
-                        )
-                        
-                        // 参数2：速度差阈值
-                        OvertakeParameterRow(
-                            label = localized("速度差阈值", "Speed Diff Threshold"),
-                                unit = "",
-                            defaultValue = 10f,
-                            minValue = 5f,
-                            maxValue = 30f,
-                            step = 1f,
-                            prefKey = "overtake_param_speed_diff_kph",
-                            context = context
-                        )
-                        }
-                    }
+            // 超车参数调节区域
+            if (overtakeMode != 0) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = Surface600, thickness = 1.dp)
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    OvertakeParameterRow(localized("最小超车速度", "Min Overtake Speed"), "", 70f, 50f, 120f, 5f, "overtake_param_min_speed_kph", context)
+                    OvertakeParameterRow(localized("速度差阈值", "Speed Diff Threshold"), "", 10f, 5f, 30f, 1f, "overtake_param_speed_diff_kph", context)
                 }
             }
         }
@@ -831,45 +542,17 @@ object MainActivityUIComponents {
         if (showAboutDialog) {
             Dialog(onDismissRequest = { showAboutDialog = false }) {
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth(0.78f)
-                        .widthIn(max = 340.dp),
+                    modifier = Modifier.fillMaxWidth(0.78f).widthIn(max = 340.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = DialogBackground),
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = "🚗 CP搭子",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = localized("Navipilot v260530", "Navipilot v260530"),
-                            fontSize = 13.sp,
-                            color = TextSecondary
-                        )
-                        // 赞助图片（点击可全屏查看）
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { showAboutDialog = false }
-                                .padding(vertical = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.sponsor),
-                                contentDescription = localized("赞助图片", "Sponsor image"),
-                                modifier = Modifier
-                                    .fillMaxWidth(0.9f)
-                                    .heightIn(max = 160.dp),
-                                contentScale = ContentScale.Fit
-                            )
+                    Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("🚗 CP搭子", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text(localized("Navipilot v260530", "Navipilot v260530"), fontSize = 13.sp, color = TextSecondary)
+                        Box(modifier = Modifier.fillMaxWidth().clickable { showAboutDialog = false }.padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+                            Image(painter = painterResource(id = R.drawable.sponsor), contentDescription = localized("赞助图片", "Sponsor image"),
+                                modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 160.dp), contentScale = ContentScale.Fit)
                         }
                         HorizontalDivider(color = Surface600)
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -879,15 +562,56 @@ object MainActivityUIComponents {
                             AboutFeatureItem("🔄", localized("自动超车与变道", "Auto Overtake & Lane Change"))
                         }
                         Spacer(Modifier.height(4.dp))
-                        Button(
-                            onClick = { showAboutDialog = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryLight),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
+                        Button(onClick = { showAboutDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = PrimaryLight), shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
                             Text(localized("知道了", "Got it"), fontWeight = FontWeight.Medium)
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * 高阶功能弹窗 - 3x3 九宫格
+     */
+    @Composable
+    fun AdvancedFunctionsDialog(
+        onDismiss: () -> Unit,
+        onSendCommand: (String, String) -> Unit,
+        onSendRoadLimitSpeed: () -> Unit,
+        onLaunchAmap: () -> Unit,
+        onSendNavConfirmation: () -> Unit,
+        onPageChange: (Page) -> Unit,
+        isOpenpilotActive: Boolean,
+        carrotManFields: CarrotManFields,
+        networkManager: NetworkManager,
+        context: android.content.Context
+    ) {
+        Dialog(onDismissRequest = onDismiss) {
+            Card(
+                modifier = Modifier
+                    .width(60.dp * 3 + 10.dp * 2 + 12.dp * 2)
+                    .wrapContentHeight()
+                    .padding(0.dp),
+                colors = CardDefaults.cardColors(containerColor = DialogBackground),
+                elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AdvancedFunctionsContent(
+                        onSendCommand = onSendCommand,
+                        onSendRoadLimitSpeed = onSendRoadLimitSpeed,
+                        onLaunchAmap = onLaunchAmap,
+                        onSendNavConfirmation = onSendNavConfirmation,
+                        onPageChange = onPageChange,
+                        isOpenpilotActive = isOpenpilotActive,
+                        carrotManFields = carrotManFields,
+                        networkManager = networkManager,
+                        context = context,
+                        onDismiss = onDismiss,
+                        onSearchClick = null,
+                        onShow7706Debug = null,
+                    )
                 }
             }
         }
