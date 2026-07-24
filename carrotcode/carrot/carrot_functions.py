@@ -1,12 +1,13 @@
 import time
 from enum import Enum
 
-from cereal import log
+from openpilot.cereal import log
 from openpilot.common.params import Params
 import numpy as np
 from openpilot.common.realtime import DT_MDL
-from openpilot.common.conversions import Conversions as CV
+from openpilot.common.constants import CV
 from openpilot.common.filter_simple import MyMovingAverage
+from openpilot.selfdrive.carrot.t_follow import ramp_t_follow
 from openpilot.selfdrive.selfdrived.events import Events
 
 EventName = log.OnroadEvent.EventName
@@ -104,6 +105,7 @@ class CarrotPlanner:
     self.dynamicTFollowLC = 0.0
     self.enableSpeedTF = 0
     self.tFollowDecelBoost = 0.0
+    self._tf_decel_extra = 0.0
     self.personality = 1
 
     self.cruiseMaxVals0 = 1.6
@@ -259,6 +261,7 @@ class CarrotPlanner:
       self._tf_applied = float(tf_target)
 
     DECEL_HOLD_A = -0.2  # m/s^2
+    self._tf_decel_extra = 0.0
 
     # 감속 중에는 t_follow 축소를 막음
     if a_ego <= DECEL_HOLD_A and tf_target < self._tf_applied:
@@ -268,15 +271,17 @@ class CarrotPlanner:
 
     # 감속 중에는 속도 감소로 실제 거리 여유가 줄 수 있으므로 약간 추가 확보
     # a_ego = -0.2 부근에서는 거의 0, 더 강한 감속일수록 boost 증가
-    decel_boost = float(np.interp(a_ego, [-2.5, -1.0, -0.2, 0.0],
-                                  [0.25, 0.12, 0.02, 0.0]))
+    decel_boost = float(np.interp(a_ego, [-2.5, -1.0, -0.3, 0.0],
+                                  [0.50, 0.25, 0.06, 0.0]))
+    self._tf_decel_extra = decel_boost * self.tFollowDecelBoost
 
-    return float(tf_held + decel_boost * self.tFollowDecelBoost)
+    return float(tf_held + self._tf_decel_extra)
 
 
   def _clip_t_follow(self, t_follow):
     tf_min = float(min(self.tFollowGap1, self.tFollowGap2, self.tFollowGap3, self.tFollowGap4))
     tf_max = float(max(self.tFollowGap1, self.tFollowGap2, self.tFollowGap3, self.tFollowGap4))
+    tf_max = min(2.0, tf_max + max(0.0, self._tf_decel_extra))
     return float(np.clip(t_follow, max(0.3, tf_min), tf_max))
 
   def get_T_FOLLOW(self, personality=log.LongitudinalPersonality.standard, v_ego=0.0, a_ego=0.0):
@@ -328,8 +333,7 @@ class CarrotPlanner:
   def apply_t_follow(self, t_follow, adjust_t_follow=0.0):
     # t_follow가 급격히 증가하면 목표거리도 급격히 증가하여 강한 감속을 유도할 수 있으므로
     # 증가 방향만 천천히 반영
-    if t_follow > self.t_follow_last:
-      t_follow = min(t_follow, self.t_follow_last + 0.1 * DT_MDL)
+    t_follow = ramp_t_follow(t_follow, self.t_follow_last, self._tf_decel_extra, DT_MDL)
 
     self.t_follow_last = float(t_follow)
     return float(t_follow + adjust_t_follow)
@@ -351,8 +355,8 @@ class CarrotPlanner:
                   model_x < np.interp(v[0] * 3.6, [60, 80], [120.0, 150]) and
                   ((model_v < 3.0) or (model_v < v[0] * 0.7)) and
                   abs(y[-1]) < 5.0)
-      # 정상주행중 감속하는 경우(카메라 감속등), 오감지가 많음. 
-      # 회생감속시:v_cruise=0에는 신호호감지하도록함.
+      # 정상 주행 중 감속하는 경우(카메라 감속 등)에는 오감지가 많음.
+      # 회생 감속으로 v_cruise가 0인 경우에는 신호를 감지하도록 함.
       if v_cruise != 0 and (self.xState == XState.e2eCruise and a_ego < -1.0):
         stopSign = False
     else:
@@ -553,8 +557,9 @@ class CarrotPlanner:
           self.comfort_brake = self.comfortBrake * 0.9
           #self.comfort_brake = COMFORT_BRAKE
           self.trafficStopAdjustRatio = np.interp(v_ego_kph, [0, 100], [1.0, 0.7])
-          stop_dist = stop_model_x_rl * np.interp(stop_model_x_rl, [0, 50], [1.0, self.trafficStopAdjustRatio])  ##�����Ÿ��� ���� �����Ÿ� ��������
-          if stop_dist > 10.0: ### 10M�̻��϶���, self.actual_stop_distance�� ������Ʈ��.
+          # 속도가 높을수록 먼 정지거리 추정값을 줄여 보정함.
+          stop_dist = stop_model_x_rl * np.interp(stop_model_x_rl, [0, 50], [1.0, self.trafficStopAdjustRatio])
+          if stop_dist > 10.0:  # 10m 이상일 때만 실제 정지거리를 갱신함.
             self.actual_stop_distance = stop_dist
           stop_model_x = 0
           self.fakeCruiseDistance = 0 if self.actual_stop_distance > 10.0 else 10.0
@@ -597,9 +602,9 @@ class CarrotPlanner:
     self.comfort_brake *= self.mySafeFactor
     self.actual_stop_distance = max(0, self.actual_stop_distance - (v_ego * DT_MDL))
 
-    if stop_model_x == 1000.0: ##  e2eCruise, lead�ΰ��
+    if stop_model_x == 1000.0:  # e2eCruise 또는 lead 상태
       self.actual_stop_distance = 0.0
-    elif self.actual_stop_distance > 0: ## e2eStop, e2eStopped�ΰ��..
+    elif self.actual_stop_distance > 0:  # e2eStop 또는 e2eStopped 상태
       stop_model_x = 0.0
 
     stopping_active = self.xState not in [XState.e2eStop, XState.e2eStopped]
@@ -612,8 +617,6 @@ class CarrotPlanner:
     #   f"stopDist={self.actual_stop_distance:.1f}," +
     #   f"Traffic={str(self.trafficState)}"
     # )
-    #��ȣ�� �������� self.xState.value
-
     stop_dist =  stop_model_x + self.actual_stop_distance
     stop_dist = max(stop_dist, 0.0)
 

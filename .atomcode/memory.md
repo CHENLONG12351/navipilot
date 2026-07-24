@@ -1,0 +1,2 @@
+- 项目已清理，仅保留 Amapauto 分支，且已成功推送最新代码。
+- 已对 carrotcode/carrot 项目代码进行初步梳理，识别出主要模块：CarrotNaviWebBridge、查询服务（query_field_events, query_snapshot_events）、缓存系统（_cache_file, _prune_cache）等。
