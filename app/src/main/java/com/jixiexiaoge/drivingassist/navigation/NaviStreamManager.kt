@@ -38,9 +38,8 @@ class NaviStreamManager(
     private var checkJob: Job? = null
     private var absentJob: Job? = null
 
-    // ─── 是否启用 absent 信号发送 ───
+    // ─── 是否启用 absent 信号发送（默认启用全部流） ───
     private var streamEnabledFlags = NaviV2Constants.ENABLED_JSON_STREAMS
-        .filter { it !in listOf("camera_state", "composition_state", "crossroad") }
         .associateWith { true }
         .toMutableMap()
 
@@ -272,7 +271,10 @@ class NaviStreamManager(
         }
         val jsonStr = jsonArray.toString()
         val lastJson = lastSentValues["lane_ahead"]
-        if (jsonStr == lastJson) return
+        if (jsonStr == lastJson) {
+            markUpdated("lane_ahead")  // 保持流活跃，即使数据未变化
+            return
+        }
         val success = client.sendJsonData("lane_ahead", present = true, value = jsonArray)
         if (success) {
             lastSentValues["lane_ahead"] = jsonStr
@@ -291,24 +293,61 @@ class NaviStreamManager(
     }
 
     /**
-     * 发送 crossroad 数据（始终 absent）
+     * 发送 camera_state 数据（地图视窗状态）
+     * 使用当前 GPS 位置作为地图中心
      */
-    fun sendCrossroadAbsent() {
-        client.sendJsonData("crossroad", present = false, null, reason = "source_absent")
+    fun sendCameraState(fields: CarrotManFields) {
+        val lat = if (fields.latitude != 0.0) fields.latitude else fields.vpPosPointLat
+        val lon = if (fields.longitude != 0.0) fields.longitude else fields.vpPosPointLon
+        val data = JSONObject().apply {
+            if (lat == 0.0 && lon == 0.0) {
+                put("camera_mode", "background")
+                put("center_latitude", JSONObject.NULL)
+                put("center_longitude", JSONObject.NULL)
+            } else {
+                put("camera_mode", "app_sync")
+                put("center_latitude", lat)
+                put("center_longitude", lon)
+                put("view_level", 16)
+                put("tilt", 0)
+                put("bearing", fields.heading.toDouble())
+            }
+        }
+        sendWithCheck("camera_state", data)
+        markUpdated("camera_state")
     }
 
     /**
-     * 发送 camera_state 数据（始终 absent）
+     * 发送 crossroad 数据（路口信息）
+     * 根据 TBT 转弯数据推断前方路口
      */
-    fun sendCameraStateAbsent() {
-        client.sendJsonData("camera_state", present = false, null, reason = "source_absent")
+    fun sendCrossroad(fields: CarrotManFields) {
+        val hasApproach = fields.nTBTDist > 0 && fields.nTBTTurnType in 0..20
+        val data = JSONObject().apply {
+            put("visible", hasApproach)
+            put("distance_m", if (hasApproach) fields.nTBTDist.coerceAtLeast(0) else -1)
+            put("image_code", if (hasApproach) "tbt" else JSONObject.NULL)
+            put("image_url", JSONObject.NULL)
+        }
+        sendWithCheck("crossroad", data)
+        markUpdated("crossroad")
     }
 
     /**
-     * 发送 composition_state 数据（始终 absent）
+     * 发送 composition_state 数据（TBT/信号灯/车道/路口 综合状态）
      */
-    fun sendCompositionStateAbsent() {
-        client.sendJsonData("composition_state", present = false, null, reason = "source_absent")
+    fun sendCompositionState(fields: CarrotManFields) {
+        val data = org.json.JSONObject().apply {
+            put("generation", 1)
+            put("tbt_current", fields.nTBTDist > 0)
+            put("tbt_next", fields.nTBTDistNext > 0)
+            put("traffic_signal", fields.trafficLightState >= 0)
+            put("lane_top", fields.nLaneCount > 0)
+            put("crossroad_active", fields.nTBTDist > 0 && fields.nTBTTurnType in 0..20)
+            put("vehicle", true)
+        }
+        sendWithCheck("composition_state", data)
+        markUpdated("composition_state")
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -379,14 +418,8 @@ class NaviStreamManager(
         if (!client.isReady()) return
         val now = System.currentTimeMillis()
 
-        // 始终发送 camera_state / composition_state / crossroad 为 absent
-        sendCrossroadAbsent()
-        sendCameraStateAbsent()
-        sendCompositionStateAbsent()
-
         // 检查其他流是否过期
         NaviV2Constants.ENABLED_JSON_STREAMS
-            .filter { it !in listOf("camera_state", "composition_state", "crossroad") }
             .forEach { name ->
                 val state = streamStates[name]
                 val lastSent = lastSentTimestamps[name] ?: 0L

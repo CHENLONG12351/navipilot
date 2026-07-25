@@ -5,6 +5,10 @@ import android.os.StrictMode
 import android.util.Log
 import com.jixiexiaoge.drivingassist.core.ErrorReporterInstance
 import com.jixiexiaoge.drivingassist.core.LocalErrorReporter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * CarrotMap 应用程序类
@@ -28,8 +32,10 @@ class CarrotApplication : Application() {
             enableStrictMode()
         }
         
-        // 🔧 修复：迁移旧的Float格式坐标到高精度String格式
-        migrateCoordinates()
+        // 🔧 修复：迁移旧的Float格式坐标到高精度String格式（异步IO，不阻塞主线程）
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob()).launch {
+            migrateCoordinates()
+        }
         
         // 初始化 Timber 日志系统
         initializeTimber()

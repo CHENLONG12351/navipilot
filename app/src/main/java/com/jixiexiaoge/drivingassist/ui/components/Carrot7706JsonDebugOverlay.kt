@@ -113,10 +113,11 @@ fun Carrot7706JsonDebugOverlay(
             }
             obj.keys().asSequence().sorted().map { key ->
                 val value = jsonScalarToDisplayString(obj.opt(key))
-                key to if (key == "nRoadLimitSpeed" && (obj.optInt(key, 0) > 0)) "$value$speedLimitSource" else value
+                val displayValue = if (key == "nRoadLimitSpeed" && (obj.optInt(key, 0) > 0)) "$value$speedLimitSource" else value
+                LabeledValue(key, displayValue)
             }.toList()
         }.getOrElse { e ->
-            listOf("_exception" to (e.message ?: e.toString()))
+            listOf(LabeledValue("_exception", e.message ?: e.toString(), Color(0xFFF87171)))
         }
     }
 
@@ -162,7 +163,7 @@ fun Carrot7706JsonDebugOverlay(
 
                 Box(modifier = Modifier.fillMaxSize().weight(1f).padding(top = 4.dp)) {
                     when (selectedTab) {
-                        0 -> UdpFieldList(pairs = udpPairs)
+                        0 -> V2DebugPanel(pairs = udpPairs)
                         1 -> V2DebugPanel(pairs = v2Pairs)
                         2 -> V2DebugPanel(pairs = broadcastPairs)
                         3 -> V2DebugPanel(pairs = vehiclePairs)
@@ -190,48 +191,6 @@ private fun TabButton(text: String, count: Int, selected: Boolean, onClick: () -
             Text(text, color = fg, fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
             Spacer(Modifier.width(3.dp))
             Text("($count)", color = Color(0xFF64748B), fontSize = 9.sp)
-        }
-    }
-}
-
-/* ─── Tab 1: UDP 7706 字段列表 ─── */
-
-@Composable
-private fun UdpFieldList(pairs: List<Pair<String, String>>) {
-    if (pairs.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("无数据", color = Color(0xFF64748B), fontSize = 12.sp)
-        }
-        return
-    }
-    val leftCol = pairs.filterIndexed { i, _ -> i % 2 == 0 }
-    val rightCol = pairs.filterIndexed { i, _ -> i % 2 == 1 }
-    Row(modifier = Modifier.fillMaxSize()) {
-        ColumnList(pairs = leftCol, modifier = Modifier.weight(1f).fillMaxHeight())
-        Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(Color(0xFF334155)).padding(horizontal = 2.dp))
-        ColumnList(pairs = rightCol, modifier = Modifier.weight(1f).fillMaxHeight())
-    }
-}
-
-@Composable
-private fun ColumnList(pairs: List<Pair<String, String>>, modifier: Modifier = Modifier) {
-    val keyColor = Color(0xFF94A3B8)
-    val valColor = Color(0xFFE2E8F0)
-    LazyColumn(
-        modifier = modifier.padding(horizontal = 2.dp),
-        contentPadding = PaddingValues(bottom = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(0.dp),
-    ) {
-        itemsIndexed(pairs) { _, (key, value) ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp, horizontal = 2.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Text(text = key, color = if (key == "_exception") Color(0xFFF87171) else keyColor, fontSize = 9.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(0.45f))
-                Spacer(Modifier.width(2.dp))
-                Text(text = value, color = valColor, fontSize = 9.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(0.55f))
-            }
-            HorizontalDivider(color = Color(0xFF334155).copy(alpha = 0.4f), thickness = 0.3.dp)
         }
     }
 }

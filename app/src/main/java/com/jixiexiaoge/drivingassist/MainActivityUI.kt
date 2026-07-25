@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -86,7 +87,9 @@ import com.jixiexiaoge.drivingassist.ui.components.SearchProvider
 import com.jixiexiaoge.drivingassist.ui.components.searchPlaces
 import com.jixiexiaoge.drivingassist.ui.theme.NavipilotTheme
 import com.jixiexiaoge.drivingassist.ui.utils.localized
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -210,6 +213,48 @@ class MainActivityUI(
         LaunchedEffect(searchShowTrigger) {
             if (searchShowTrigger > 0) showSearchDialog = true
         }
+
+        // 监听回家导航触发
+        LaunchedEffect(homeNavTrigger) {
+            if (homeNavTrigger > 0) {
+                val prefs = mapContext.getSharedPreferences("map_addresses", Context.MODE_PRIVATE)
+                val name = prefs.getString("home_name", "") ?: ""
+                val lat = try { prefs.getFloat("home_lat", 0f).toDouble() } catch (_: ClassCastException) { prefs.getString("home_lat", "0")?.toDoubleOrNull() ?: 0.0 }
+                val lon = try { prefs.getFloat("home_lon", 0f).toDouble() } catch (_: ClassCastException) { prefs.getString("home_lon", "0")?.toDoubleOrNull() ?: 0.0 }
+                if (name.isNotEmpty() && lat != 0.0 && lon != 0.0) {
+                    MainActivityUIComponents.sendPoiNavigationToAmapAuto(mapContext, name, lat, lon)
+                }
+            }
+        }
+        // 监听清除回家地址（长按）
+        LaunchedEffect(homeNavLongTrigger) {
+            if (homeNavLongTrigger > 0) {
+                mapContext.getSharedPreferences("map_addresses", Context.MODE_PRIVATE).edit()
+                    .remove("home_name").remove("home_lat").remove("home_lon").apply()
+                homeAddressSet = false
+            }
+        }
+        // 监听回公司导航触发
+        LaunchedEffect(companyNavTrigger) {
+            if (companyNavTrigger > 0) {
+                val prefs = mapContext.getSharedPreferences("map_addresses", Context.MODE_PRIVATE)
+                val name = prefs.getString("company_name", "") ?: ""
+                val lat = try { prefs.getFloat("company_lat", 0f).toDouble() } catch (_: ClassCastException) { prefs.getString("company_lat", "0")?.toDoubleOrNull() ?: 0.0 }
+                val lon = try { prefs.getFloat("company_lon", 0f).toDouble() } catch (_: ClassCastException) { prefs.getString("company_lon", "0")?.toDoubleOrNull() ?: 0.0 }
+                if (name.isNotEmpty() && lat != 0.0 && lon != 0.0) {
+                    MainActivityUIComponents.sendPoiNavigationToAmapAuto(mapContext, name, lat, lon)
+                }
+            }
+        }
+        // 监听清除公司地址（长按）
+        LaunchedEffect(companyNavLongTrigger) {
+            if (companyNavLongTrigger > 0) {
+                mapContext.getSharedPreferences("map_addresses", Context.MODE_PRIVATE).edit()
+                    .remove("company_name").remove("company_lat").remove("company_lon").apply()
+                companyAddressSet = false
+            }
+        }
+
         val mapService = core.userSelectedMode
         val gpsAccuracy = carrotManFields.accuracy
         val positionMode = when {
@@ -369,7 +414,13 @@ class MainActivityUI(
         }
 
         // 搜索对话框
-        val navHistory = remember { mutableStateOf(loadNavHistory(mapContext)) }
+        var navHistory by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
+        val navHistoryScope = rememberCoroutineScope()
+        LaunchedEffect(Unit) {
+            withContext(kotlinx.coroutines.Dispatchers.IO) {
+                navHistory = MainActivityUISearch.loadNavHistory(mapContext)
+            }
+        }
         if (showSearchDialog) {
             AlertDialog(
                 onDismissRequest = { showSearchDialog = false; searchQuery = ""; searchResults = emptyList() },
@@ -448,36 +499,52 @@ class MainActivityUI(
                                 Spacer(Modifier.height(4.dp))
                             }
                             searchResults.forEach { result ->
-                                ListItem(
-                                    headlineContent = { Text(result.name, fontSize = 13.sp, fontWeight = FontWeight.Medium) },
-                                    supportingContent = { if (result.address.isNotBlank()) Text(result.address, fontSize = 11.sp, maxLines = 1) },
-                                    modifier = Modifier.clickable {
-                                        // 发送导航到高德车机版
-                                        MainActivityUIComponents.sendPoiNavigationToAmapAuto(
-                                            mapContext, result.name, result.lat, result.lon
-                                        )
-                                        saveNavHistory(mapContext, result.name, result.lon, result.lat)
-                                        navHistory.value = loadNavHistory(mapContext)
-                                        showSearchDialog = false
-                                        searchQuery = ""
-                                        searchResults = emptyList()
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        MainActivityUIComponents.sendPoiNavigationToAmapAuto(mapContext, result.name, result.lat, result.lon)
+                                        navHistoryScope.launch {
+                                            MainActivityUISearch.saveNavHistory(mapContext, result.name, result.lon, result.lat)
+                                            navHistory = MainActivityUISearch.loadNavHistory(mapContext)
+                                        }
+                                        showSearchDialog = false; searchQuery = ""; searchResults = emptyList()
+                                    }.padding(vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(result.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                        if (result.address.isNotBlank()) Text(result.address, fontSize = 11.sp, color = Color(0xFF94A3B8), maxLines = 1)
                                     }
-                                )
+                                    // 保存到家/公司按钮
+                                    if (!homeAddressSet) {
+                                        TextButton(onClick = { navHistoryScope.launch { MainActivityUISearch.saveAddress(mapContext, "home", result.name, result.lon, result.lat) }; homeAddressSet = true },
+                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
+                                            Text("🏠", fontSize = 14.sp)
+                                        }
+                                    }
+                                    if (!companyAddressSet) {
+                                        TextButton(onClick = { navHistoryScope.launch { MainActivityUISearch.saveAddress(mapContext, "company", result.name, result.lon, result.lat) }; companyAddressSet = true },
+                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
+                                            Text("🏢", fontSize = 14.sp)
+                                        }
+                                    }
+                                }
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                             }
                         } else if (!isSearching && searchQuery.isNotEmpty()) {
                             Text(localized("无搜索结果", "No results"), fontSize = 13.sp, color = Color(0xFF94A3B8),
                                 modifier = Modifier.padding(vertical = 20.dp))
-                        } else if (!isSearching && searchQuery.isEmpty() && navHistory.value.isNotEmpty()) {
+                        } else if (!isSearching && searchQuery.isEmpty() && navHistory.isNotEmpty()) {
                             Text(localized("🕐 最近导航", "🕐 Recent"), fontSize = 11.sp, color = TextSecondary,
                                 fontWeight = FontWeight.Medium, modifier = Modifier.padding(vertical = 4.dp))
-                            navHistory.value.forEach { hist ->
+                            navHistory.forEach { hist ->
                                 ListItem(
                                     headlineContent = { Text(hist.name, fontSize = 13.sp, fontWeight = FontWeight.Medium) },
                                     modifier = Modifier.clickable {
                                         MainActivityUIComponents.sendPoiNavigationToAmapAuto(mapContext, hist.name, hist.lat, hist.lon)
-                                        saveNavHistory(mapContext, hist.name, hist.lon, hist.lat)
-                                        navHistory.value = loadNavHistory(mapContext)
+                                        navHistoryScope.launch {
+                                            MainActivityUISearch.saveNavHistory(mapContext, hist.name, hist.lon, hist.lat)
+                                            navHistory = MainActivityUISearch.loadNavHistory(mapContext)
+                                        }
                                         showSearchDialog = false
                                         searchQuery = ""
                                     }
@@ -622,39 +689,9 @@ class MainActivityUI(
         }
     }
 
-    private fun saveNavHistory(context: Context, name: String, lon: Double, lat: Double) {
-        val prefs = context.getSharedPreferences("nav_history", Context.MODE_PRIVATE)
-        val existing = prefs.getString("history_json", "[]") ?: "[]"
-        val arr = try { org.json.JSONArray(existing) } catch (_: Exception) { org.json.JSONArray() }
-        val filtered = org.json.JSONArray()
-        for (i in 0 until arr.length()) {
-            val obj = arr.optJSONObject(i) ?: continue
-            val oName = obj.optString("name", "")
-            val oLat = obj.optDouble("lat", 0.0)
-            val oLon = obj.optDouble("lon", 0.0)
-            if (oName == name || (kotlin.math.abs(oLat - lat) < 0.0005 && kotlin.math.abs(oLon - lon) < 0.0005)) continue
-            filtered.put(obj)
-        }
-        val newArr = org.json.JSONArray()
-        newArr.put(org.json.JSONObject().put("name", name).put("lon", lon).put("lat", lat))
-        for (i in 0 until minOf(filtered.length(), 2)) { newArr.put(filtered.getJSONObject(i)) }
-        prefs.edit().putString("history_json", newArr.toString()).apply()
-    }
-
-    private fun loadNavHistory(context: Context): List<SearchResult> {
-        val prefs = context.getSharedPreferences("nav_history", Context.MODE_PRIVATE)
-        val json = prefs.getString("history_json", "[]") ?: "[]"
-        val arr = try { org.json.JSONArray(json) } catch (_: Exception) { return emptyList() }
-        val results = mutableListOf<SearchResult>()
-        for (i in 0 until minOf(arr.length(), 3)) {
-            val obj = arr.optJSONObject(i) ?: continue
-            val name = obj.optString("name", "")
-            val lon = obj.optDouble("lon", 0.0)
-            val lat = obj.optDouble("lat", 0.0)
-            if (name.isNotEmpty() && lon != 0.0 && lat != 0.0) results.add(SearchResult(name, "", lon, lat))
-        }
-        return results
-    }
+    /** 搜索对话框底部：待提取完成时此处为完整搜索实现 */
+    // 已提取到 MainActivityUISearch.kt:
+    //   saveNavHistory()、saveAddress()、loadNavHistory()
 
     /**
      * 首页功能控制面板

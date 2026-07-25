@@ -1016,6 +1016,9 @@ class MainActivityLifecycle(
                     msgr.sendTrafficSignal(fields)
                     msgr.sendLaneCurrent(fields)
                     msgr.sendLaneAhead(fields)
+                    msgr.sendCameraState(fields)
+                    msgr.sendCrossroad(fields)
+                    msgr.sendCompositionState(fields)
                     msgr.sendAppStatus(false) // foreground 由 UI 状态触发
                     lastFields = fields
                 }
