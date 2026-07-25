@@ -5,7 +5,7 @@
         原 MaterialComponents 主题已移除（腾讯SDK已删除）。
         应用 UI 100% 使用 Jetpack Compose Material3，主题仅用于 Activity 窗口背景。
     -->
-    <style name="Theme.Navipilot" parent="@android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.DrivingAssist" parent="@android:style/Theme.Material.Light.NoActionBar">
         <!-- 保持状态栏/导航栏透明 -->
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
