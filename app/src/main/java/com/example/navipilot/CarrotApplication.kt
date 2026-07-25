@@ -3,7 +3,6 @@ package com.example.navipilot
 import android.app.Application
 import android.os.StrictMode
 import android.util.Log
-import com.example.navipilot.core.AppAnalytics
 import com.example.navipilot.core.ErrorReporterInstance
 import com.example.navipilot.core.LocalErrorReporter
 
@@ -37,9 +36,6 @@ class CarrotApplication : Application() {
         
         // 初始化错误上报
         initializeErrorReporting()
-        
-        // 初始化匿名使用分析
-        initializeAnalytics()
         
         Log.i(TAG, "✅ CarrotApplication 初始化完成")
     }
@@ -144,20 +140,4 @@ class CarrotApplication : Application() {
             Log.e(TAG, "❌ GPS坐标迁移失败（不影响功能）", e)
         }
     }
-    
-    /**
-     * 初始化匿名使用分析
-     */
-    private fun initializeAnalytics() {
-        try {
-            val deviceId = android.provider.Settings.Secure.getString(
-                contentResolver, android.provider.Settings.Secure.ANDROID_ID
-            ) ?: "unknown"
-            AppAnalytics.init(this, deviceId)
-            Log.i(TAG, "✅ 匿名分析已初始化")
-        } catch (e: Exception) {
-            Log.w(TAG, "⚠️ 匿名分析初始化失败（不影响功能）: ${e.message}")
-        }
-    }
-
     }

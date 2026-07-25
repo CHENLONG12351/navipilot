@@ -5,8 +5,21 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.URL
+import java.util.Properties
 
 private const val TAG = "MapSearchService"
+
+/** 从 secrets.properties 读取 API Key */
+private fun loadApiKey(context: Context, keyName: String): String {
+    try {
+        val props = Properties()
+        context.assets.open("secrets.properties").use { props.load(it) }
+        return props.getProperty(keyName, "")
+    } catch (e: Exception) {
+        android.util.Log.w(TAG, "无法加载 secrets.properties，使用空 Key")
+        return ""
+    }
+}
 
 /** 搜索结果 */
 data class SearchResult(
@@ -29,11 +42,11 @@ enum class SearchProvider(val label: String, val labelCn: String) {
 }
 
 /** 搜索提供商对应的地理编码 API */
-private fun amapGeocodeUrl(query: String): String =
-    "https://restapi.amap.com/v3/place/text?keywords=${java.net.URLEncoder.encode(query, "UTF-8")}&key=de0a8f5c4b5dc69d0692ef1efb8601ee&output=json&offset=10"
+private fun amapGeocodeUrl(query: String, context: Context): String =
+    "https://restapi.amap.com/v3/place/text?keywords=${java.net.URLEncoder.encode(query, "UTF-8")}&key=${loadApiKey(context, "AMAP_KEY")}&output=json&offset=10"
 
-private fun tencentGeocodeUrl(query: String): String =
-    "https://apis.map.qq.com/ws/place/v1/suggestion?keyword=${java.net.URLEncoder.encode(query, "UTF-8")}&key=2NFBZ-YKG3W-TI4RJ-R4PJG-CGSSL-S2BRB&output=json&region=全国"
+private fun tencentGeocodeUrl(query: String, context: Context): String =
+    "https://apis.map.qq.com/ws/place/v1/suggestion?keyword=${java.net.URLEncoder.encode(query, "UTF-8")}&key=${loadApiKey(context, "TENCENT_KEY")}&output=json&region=全国"
 
 /**
  * 统一搜索入口
@@ -46,26 +59,39 @@ suspend fun searchPlaces(
     provider: SearchProvider = SearchProvider.GAODE,
     context: Context
 ): SearchResponse = withContext(Dispatchers.IO) {
+    android.util.Log.i(TAG, "搜索请求: query=\"$query\" provider=$provider")
     when (provider) {
-        SearchProvider.GAODE -> searchPlacesAmap(query)
-        SearchProvider.TENCENT -> searchPlacesTencent(query)
+        SearchProvider.GAODE -> searchPlacesAmap(query, context)
+        SearchProvider.TENCENT -> searchPlacesTencent(query, context)
     }
 }
 
 /**
  * 高德地图 POI 搜索
  */
-private suspend fun searchPlacesAmap(query: String): SearchResponse = withContext(Dispatchers.IO) {
+private suspend fun searchPlacesAmap(query: String, context: Context): SearchResponse = withContext(Dispatchers.IO) {
     val results = mutableListOf<SearchResult>()
     try {
-        val url = URL(amapGeocodeUrl(query))
+        val url = URL(amapGeocodeUrl(query, context))
         val conn = url.openConnection()
         conn.setRequestProperty("User-Agent", "Navipilot/1.0")
         conn.connectTimeout = 8000
         conn.readTimeout = 8000
         val jsonStr = conn.inputStream.bufferedReader().readText()
+        android.util.Log.i(TAG, "高德 API 原始响应: $jsonStr")
         val json = JSONObject(jsonStr)
-        val pois = json.optJSONArray("pois") ?: JSONObject().optJSONArray("pois") ?: return@withContext SearchResponse(results, "高德地图")
+        // 检查 API 状态
+        val status = json.optString("status", "")
+        if (status == "0") {
+            val info = json.optString("info", "未知错误")
+            android.util.Log.w(TAG, "高德 API 返回错误: info=$info")
+            return@withContext SearchResponse(results, "高德地图")
+        }
+        val pois = json.optJSONArray("pois")
+        if (pois == null) {
+            android.util.Log.w(TAG, "高德 API 响应中无 pois 字段，原始响应: ${jsonStr.take(500)}")
+            return@withContext SearchResponse(results, "高德地图")
+        }
         for (i in 0 until pois.length()) {
             val poi = pois.getJSONObject(i)
             val name = poi.optString("name", "")
@@ -89,10 +115,10 @@ private suspend fun searchPlacesAmap(query: String): SearchResponse = withContex
 /**
  * 腾讯地图搜索
  */
-private suspend fun searchPlacesTencent(query: String): SearchResponse = withContext(Dispatchers.IO) {
+private suspend fun searchPlacesTencent(query: String, context: Context): SearchResponse = withContext(Dispatchers.IO) {
     val results = mutableListOf<SearchResult>()
     try {
-        val url = URL(tencentGeocodeUrl(query))
+        val url = URL(tencentGeocodeUrl(query, context))
         val conn = url.openConnection()
         conn.setRequestProperty("User-Agent", "Navipilot/1.0")
         conn.connectTimeout = 8000

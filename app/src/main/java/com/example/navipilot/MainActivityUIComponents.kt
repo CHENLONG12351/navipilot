@@ -313,7 +313,7 @@ object MainActivityUIComponents {
         onPageChange: (Page) -> Unit,
         isOpenpilotActive: Boolean,
         carrotManFields: CarrotManFields,
-        networkManager: NetworkManager,
+        networkManager: NetworkManager? = null,
         context: android.content.Context,
         onDismiss: (() -> Unit)? = null,
         onSearchClick: (() -> Unit)? = null,    // 搜索回调

@@ -733,7 +733,6 @@ class MainActivityLifecycle(
                             core.usageDurationMinutes.value = durationMinutes
                             updateSelfCheckStatus("使用统计", "更新完成", true)
                         }
-                        core.autoUpdateUsageDuration(core.deviceId.value, durationMinutes)
                     } catch (e: UninitializedPropertyAccessException) {
                         Log.d(TAG, "📝 deviceManager未初始化，跳过使用统计更新")
                         withContext(Dispatchers.Main) {

@@ -907,7 +907,7 @@ class MainActivityUI(
                             onPageChange = onPageChange,
                             isOpenpilotActive = carrotManFields.active,
                             carrotManFields = carrotManFields,
-                            networkManager = core.networkManager,
+                            networkManager = try { core.networkManager } catch (_: Exception) { null },
                             context = panelContext,
                             onDismiss = null,
                             onSearchClick = { onSearchClick() },
