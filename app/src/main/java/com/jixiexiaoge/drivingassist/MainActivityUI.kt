@@ -249,31 +249,6 @@ class MainActivityUI(
                     .weight(1f)
                     .background(Surface900)
             ) {
-                // 连接状态指示（右上角浮标）
-                val connDotColor = when (commaConnectionState) {
-                    1 -> Color(0xFF22C55E)
-                    2 -> Color(0xFFEF4444)
-                    else -> Color(0xFF475569)
-                }
-                val connLabel = when (commaConnectionState) {
-                    1 -> localized("已连接", "Connected")
-                    2 -> localized("异常", "Error")
-                    else -> localized("等待设备", "Waiting")
-                }
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 2.dp, end = 4.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF0F172A).copy(alpha = 0.6f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(connDotColor))
-                        Spacer(Modifier.width(3.dp))
-                        Text(connLabel, color = connDotColor, fontSize = 8.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
                 // 数据面板（居中显示）
                 HomeControlPanel(
                     modifier = Modifier
@@ -827,6 +802,7 @@ class MainActivityUI(
                             onDismiss = null,
                             onSearchClick = { onSearchClick() },
                             onShow7706Debug = { onLanePanelClick() },
+                            commaConnectionState = commaConnectionState,
                         )
                     }
                 }
@@ -874,6 +850,36 @@ class MainActivityUI(
                                     Text(expLabel, fontSize = 11.sp, color = expColor, fontWeight = FontWeight.Bold)
                                     Spacer(Modifier.width(4.dp))
                                     Text(when (isExperimentalMode) { true -> "🧪" false -> "❄️" null -> "..." }, fontSize = 10.sp)
+                                }
+                            }
+
+                            // 数据分享开关
+                            var shareDataEnabled by remember { mutableStateOf(false) }
+                            Box(
+                                modifier = Modifier
+                                    .padding(start = 4.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(if (shareDataEnabled) Color(0xFF22C55E).copy(alpha = 0.15f) else Color(0xFF475569).copy(alpha = 0.15f))
+                                    .clickable {
+                                        val client = carrotParamClient
+                                        if (client != null) {
+                                            kotlinx.coroutines.MainScope().launch {
+                                                val newVal = if (shareDataEnabled) 0 else 1
+                                                client.setParam("ShareData", newVal)
+                                                shareDataEnabled = !shareDataEnabled
+                                            }
+                                        }
+                                    }
+                                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("📤", fontSize = 8.sp)
+                                    Spacer(Modifier.width(2.dp))
+                                    Text(
+                                        text = if (shareDataEnabled) localized("正在分发", "Sharing") else localized("开启分享", "Share"),
+                                        color = if (shareDataEnabled) Color(0xFF22C55E) else Color(0xFF64748B),
+                                        fontSize = 9.sp, fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
 
@@ -933,6 +939,20 @@ class MainActivityUI(
                                     Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(tColor))
                                     Spacer(Modifier.width(4.dp))
                                     Text(tLabel, fontSize = 12.sp, color = tColor, fontWeight = FontWeight.Bold)
+                                    // 灯类型方向
+                                    val dir = carrotManFields.amap_traffic_light_dir
+                                    val dirLabel = when (dir) {
+                                        1 -> "←"
+                                        2 -> "→"
+                                        3 -> "↩"
+                                        4 -> "↑"
+                                        5 -> "↪"
+                                        else -> ""
+                                    }
+                                    if (dirLabel.isNotEmpty()) {
+                                        Spacer(Modifier.width(2.dp))
+                                        Text(dirLabel, fontSize = 11.sp, color = Color(0xFF94A3B8))
+                                    }
                                     Spacer(Modifier.width(4.dp))
                                     Text("${amapCountdown}s", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Bold)
                                 }

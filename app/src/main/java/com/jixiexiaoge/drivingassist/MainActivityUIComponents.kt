@@ -11,6 +11,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -318,6 +320,7 @@ object MainActivityUIComponents {
         onDismiss: (() -> Unit)? = null,
         onSearchClick: (() -> Unit)? = null,    // 搜索回调
         onShow7706Debug: (() -> Unit)? = null,  // 7706 调试面板回调
+        commaConnectionState: Int = 0,           // 连接状态
     ) {
         var showAboutDialog by remember { mutableStateOf(false) }
         fun playSound(resourceId: Int, soundName: String) {
@@ -370,6 +373,23 @@ object MainActivityUIComponents {
                 Text("🎮", fontSize = 11.sp)
                 Spacer(Modifier.width(3.dp))
                 Text(localized("快捷控制", "Controls"), color = Color(0xFF94A3B8), fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.weight(1f))
+                // 连接状态指示
+                val connDotColor = when (commaConnectionState) {
+                    1 -> Color(0xFF22C55E)
+                    2 -> Color(0xFFEF4444)
+                    else -> Color(0xFF475569)
+                }
+                val connLabel = when (commaConnectionState) {
+                    1 -> localized("已连接", "Connected")
+                    2 -> localized("异常", "Error")
+                    else -> localized("等待", "Waiting")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(connDotColor))
+                    Spacer(Modifier.width(3.dp))
+                    Text(connLabel, color = connDotColor, fontSize = 8.sp, fontWeight = FontWeight.Medium)
+                }
             }
             Spacer(Modifier.height(4.dp))
             Card(
@@ -554,8 +574,9 @@ object MainActivityUIComponents {
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
                     Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("🚗 CP搭子", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Text(localized("Navipilot v260530", "Navipilot v260530"), fontSize = 13.sp, color = TextSecondary)
+                        Text("🚗 CP搭子3.0", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text(localized("兼容 openpilot 全系 CP 用户", "Compatible with all openpilot CP users"), fontSize = 12.sp, color = TextSecondary)
+                        Text(localized("含欧尚 Z6 等车型", "Including Oushan Z6 and more"), fontSize = 11.sp, color = Color(0xFF94A3B8))
                         Box(modifier = Modifier.fillMaxWidth().clickable { showAboutDialog = false }.padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
                             Image(painter = painterResource(id = R.drawable.sponsor), contentDescription = localized("赞助图片", "Sponsor image"),
                                 modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 160.dp), contentScale = ContentScale.Fit)
@@ -566,6 +587,7 @@ object MainActivityUIComponents {
                             AboutFeatureItem("🚗", localized("openpilot 驾驶辅助", "openpilot Driving Assist"))
                             AboutFeatureItem("📊", localized("车道感知与盲区监测", "Lane Awareness & Blindspot"))
                             AboutFeatureItem("🔄", localized("自动超车与变道", "Auto Overtake & Lane Change"))
+                            AboutFeatureItem("📤", localized("数据分享与分发", "Data Sharing & Distribution"))
                         }
                         Spacer(Modifier.height(4.dp))
                         Button(onClick = { showAboutDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = PrimaryLight), shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {

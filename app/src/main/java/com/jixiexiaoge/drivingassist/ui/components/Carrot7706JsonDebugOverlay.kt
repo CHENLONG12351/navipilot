@@ -399,10 +399,6 @@ private fun buildXiaogeDebugPairs(
             result.add(LabeledValue("  lead0.v", String.format("%.1f m/s", lead0.optDouble("v"))))
             result.add(LabeledValue("  lead0.prob", String.format("%.2f", lead0.optDouble("prob"))))
         }
-        val leadLeft = modelV2.optJSONObject("leadLeft")
-        result.add(LabeledValue("  leadLeft", if (leadLeft?.optBoolean("status") == true) "✅ dRel=${leadLeft.optDouble("dRel")}" else "❌"))
-        val leadRight = modelV2.optJSONObject("leadRight")
-        result.add(LabeledValue("  leadRight", if (leadRight?.optBoolean("status") == true) "✅ dRel=${leadRight.optDouble("dRel")}" else "❌"))
         val laneProbs = modelV2.optJSONArray("laneLineProbs")
         if (laneProbs != null && laneProbs.length() >= 2) {
             result.add(LabeledValue("  laneLineProbs", "[${String.format("%.2f", laneProbs.optDouble(0))}, ${String.format("%.2f", laneProbs.optDouble(1))}]"))
