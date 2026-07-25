@@ -724,6 +724,18 @@ class MainActivityUI(
             isExperimentalMode = result.getOrNull()?.get("ExperimentalMode")?.let(::parseExperimentalMode)
         }
 
+        // 从设备读取 ShareData 参数值
+        var isShareDataEnabled by remember(carrotParamClient) { mutableStateOf<Boolean?>(null) }
+
+        LaunchedEffect(carrotParamClient) {
+            if (carrotParamClient == null) {
+                isShareDataEnabled = null
+                return@LaunchedEffect
+            }
+            val result = carrotParamClient.getParams("ShareData")
+            isShareDataEnabled = result.getOrNull()?.get("ShareData")?.let(::parseExperimentalMode)
+        }
+
         val experimentBg = when (isExperimentalMode) {
             true -> Color(0xFF8B5CF6).copy(alpha = 0.92f)
             false -> Color(0xFF06B6D4).copy(alpha = 0.92f)
@@ -854,19 +866,18 @@ class MainActivityUI(
                             }
 
                             // 数据分享开关
-                            var shareDataEnabled by remember { mutableStateOf(false) }
                             Box(
                                 modifier = Modifier
                                     .padding(start = 4.dp)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (shareDataEnabled) Color(0xFF22C55E).copy(alpha = 0.15f) else Color(0xFF475569).copy(alpha = 0.15f))
+                                    .background(if (isShareDataEnabled == true) Color(0xFF22C55E).copy(alpha = 0.15f) else Color(0xFF475569).copy(alpha = 0.15f))
                                     .clickable {
                                         val client = carrotParamClient
                                         if (client != null) {
                                             kotlinx.coroutines.MainScope().launch {
-                                                val newVal = if (shareDataEnabled) 0 else 1
+                                                val newVal = if (isShareDataEnabled == true) 0 else 1
                                                 client.setParam("ShareData", newVal)
-                                                shareDataEnabled = !shareDataEnabled
+                                                isShareDataEnabled = isShareDataEnabled != true
                                             }
                                         }
                                     }
@@ -876,8 +887,8 @@ class MainActivityUI(
                                     Text("📤", fontSize = 8.sp)
                                     Spacer(Modifier.width(2.dp))
                                     Text(
-                                        text = if (shareDataEnabled) localized("正在分发", "Sharing") else localized("开启分享", "Share"),
-                                        color = if (shareDataEnabled) Color(0xFF22C55E) else Color(0xFF64748B),
+                                        text = if (isShareDataEnabled == true) localized("正在分发", "Sharing") else localized("开启分享", "Share"),
+                                        color = if (isShareDataEnabled == true) Color(0xFF22C55E) else Color(0xFF64748B),
                                         fontSize = 9.sp, fontWeight = FontWeight.Bold
                                     )
                                 }
