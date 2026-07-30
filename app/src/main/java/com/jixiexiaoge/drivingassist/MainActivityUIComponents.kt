@@ -321,6 +321,18 @@ object MainActivityUIComponents {
         onSearchClick: (() -> Unit)? = null,    // 搜索回调
         onShow7706Debug: (() -> Unit)? = null,  // 7706 调试面板回调
         commaConnectionState: Int = 0,           // 连接状态
+        onHomeNavClick: () -> Unit = {},         // 回家导航
+        onHomeNavLongClick: () -> Unit = {},     // 清除回家地址
+        onCompanyNavClick: () -> Unit = {},      // 公司导航
+        onCompanyNavLongClick: () -> Unit = {},  // 清除公司地址
+        homeAddressSet: Boolean = false,         // 家地址是否已设置
+        companyAddressSet: Boolean = false,      // 公司地址是否已设置
+        onExperimentClick: () -> Unit = {},      // 实验模式切换
+        onShareDataClick: () -> Unit = {},       // 数据分享切换
+        isShareDataEnabled: Boolean? = null,     // 数据分享状态
+        trafficLightState: Int = -1,            // 红绿灯状态
+        trafficLightCountdown: Int = 0,         // 红绿灯倒计时
+        trafficLightDir: Int = 0,               // 红绿灯方向
     ) {
         var showAboutDialog by remember { mutableStateOf(false) }
         fun playSound(resourceId: Int, soundName: String) {
@@ -359,20 +371,27 @@ object MainActivityUIComponents {
         val coroutineScope = rememberCoroutineScope()
 
         Column {
-            // 标题栏（主页模式用小标题、弹窗模式用大标题）
+            // 标题栏
             Text(
-                text = localized("高级功能", "Advanced"),
-                fontSize = if (onDismiss == null) 14.sp else 16.sp,
+                text = "CP搭子免费开源版",
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Start
+            )
+            Text(
+                text = localized("由 机械小鸽 分享", "by JiXieXiaoGe"),
+                fontSize = 9.sp,
+                color = Color(0xFF94A3B8),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                textAlign = if (onDismiss == null) androidx.compose.ui.text.style.TextAlign.Start else androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = androidx.compose.ui.text.style.TextAlign.Start
             )
             // 3x3 九宫格按钮区域
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("🎮", fontSize = 11.sp)
                 Spacer(Modifier.width(3.dp))
-                Text(localized("快捷控制", "Controls"), color = Color(0xFF94A3B8), fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                Text(localized("由机械小鸽 开发并分享", "by JiXieXiaoGe"), color = Color(0xFF94A3B8), fontSize = 9.sp, fontWeight = FontWeight.Normal)
                 Spacer(Modifier.weight(1f))
                 // 连接状态指示
                 val connDotColor = when (commaConnectionState) {
@@ -397,22 +416,33 @@ object MainActivityUIComponents {
                 colors = CardDefaults.cardColors(containerColor = Surface800.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
+                // 根据屏幕方向动态设置行列数
+                val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+                val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                val cols = if (isLandscape) 5 else 3
+                val rows = 15 / cols
+                val btnSize = if (isLandscape) 56.dp else 72.dp
+                val gridSpacing = if (isLandscape) 4.dp else 10.dp
                 Column(
                     modifier = Modifier.padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(gridSpacing)
                 ) {
-                    for (row in 0..2) {
+                    var buttonIndex = 0
+                    for (row in 0 until rows) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                    for (col in 0..2) {
-                        val buttonNumber = row * 3 + col + 1
-                        when (buttonNumber) {
-                            1 -> {
+                            for (col in 0 until cols) {
+                                buttonIndex++
+                                val bn = buttonIndex
+                                // 按钮位置对调：1↔10, 2↔11, 3↔12（功能不变，仅布局位置交换）
+                                val mappedBn = when (bn) { 1 -> 10; 2 -> 11; 3 -> 12; 10 -> 1; 11 -> 2; 12 -> 3; else -> bn }
+                                when (mappedBn) {
+                                    1 -> {
                                 Button(
                                     onClick = { showAboutDialog = true },
-                                    modifier = Modifier.size(72.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
                                     colors = ButtonDefaults.buttonColors(containerColor = ButtonHelp),
                                     contentPadding = PaddingValues(0.dp),
                                     shape = RoundedCornerShape(14.dp)
@@ -424,17 +454,19 @@ object MainActivityUIComponents {
                                 }
                             }
                             2 -> {
-                                val currentCruiseSpeed = carrotManFields.vCruiseKph.toInt()
-                                val newSpeed = if (currentCruiseSpeed > 0) minOf(currentCruiseSpeed + 10, 150) else 50
                                 Button(
-                                    onClick = { onSendCommand("SPEED", newSpeed.toString()) },
-                                    modifier = Modifier.size(72.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
-                                    colors = ButtonDefaults.buttonColors(containerColor = ButtonAccel),
+                                    onClick = { onHomeNavClick() },
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (homeAddressSet) Color(0xFFF97316) else Color(0xFF475569)),
                                     contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                        Icon(Icons.Default.KeyboardArrowUp, "加速", Modifier.size(24.dp), tint = Color.White)
-                                        Text(localized("加速", "Accel"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text("🏠", fontSize = 18.sp)
+                                        Text(
+                                            text = if (homeAddressSet) localized("回家", "Home") else localized("设家", "Set Home"),
+                                            fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                            color = if (homeAddressSet) Color.White else Color.White.copy(alpha = 0.5f)
+                                        )
                                     }
                                 }
                             }
@@ -454,7 +486,7 @@ object MainActivityUIComponents {
                                             }
                                         }
                                     },
-                                    modifier = Modifier.size(72.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
                                     colors = ButtonDefaults.buttonColors(containerColor = if (isOvertakeModeLoading) Surface500 else overtakeModeColors[overtakeMode]),
                                     contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp),
                                     enabled = !isOvertakeModeLoading
@@ -466,7 +498,7 @@ object MainActivityUIComponents {
                             4 -> {
                                 Button(
                                     onClick = { playSound(R.raw.left, "左变道"); onSendCommand("LANECHANGE", "LEFT"); onDismiss?.invoke() },
-                                    modifier = Modifier.size(72.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
                                     colors = ButtonDefaults.buttonColors(containerColor = ButtonLaneChange),
                                     contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
                                 ) {
@@ -479,7 +511,7 @@ object MainActivityUIComponents {
                             5 -> {
                                 Button(
                                     onClick = { onSearchClick?.invoke(); onDismiss?.invoke() },
-                                    modifier = Modifier.size(72.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
                                     contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
                                 ) {
@@ -492,7 +524,7 @@ object MainActivityUIComponents {
                             6 -> {
                                 Button(
                                     onClick = { playSound(R.raw.right, "右变道"); onSendCommand("LANECHANGE", "RIGHT"); onDismiss?.invoke() },
-                                    modifier = Modifier.size(72.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
                                     colors = ButtonDefaults.buttonColors(containerColor = ButtonLaneChange),
                                     contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
                                 ) {
@@ -505,7 +537,7 @@ object MainActivityUIComponents {
                             7 -> {
                                 Button(
                                     onClick = { onShow7706Debug?.invoke(); onDismiss?.invoke() },
-                                    modifier = Modifier.size(72.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
                                     contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
                                 ) {
@@ -516,33 +548,140 @@ object MainActivityUIComponents {
                                 }
                             }
                             8 -> {
-                                val currentCruiseSpeed = carrotManFields.vCruiseKph.toInt()
-                                val newSpeed = if (currentCruiseSpeed > 20) maxOf(currentCruiseSpeed - 10, 20) else currentCruiseSpeed
                                 Button(
-                                    onClick = {
-                                        if (newSpeed < currentCruiseSpeed) onSendCommand("SPEED", newSpeed.toString())
-                                        else android.widget.Toast.makeText(context, localized("⚠️ 已是最低速度（${currentCruiseSpeed}km/h）", "⚠️ Already at minimum speed (${currentCruiseSpeed}km/h)"), android.widget.Toast.LENGTH_SHORT).show()
-                                    },
-                                    modifier = Modifier.size(72.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
-                                    colors = ButtonDefaults.buttonColors(containerColor = ButtonDecel),
+                                    onClick = { onCompanyNavClick() },
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (companyAddressSet) Color(0xFF3B82F6) else Color(0xFF475569)),
                                     contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                        Icon(Icons.Default.KeyboardArrowDown, "减速", Modifier.size(24.dp), tint = Color.White)
-                                        Text(localized("减速", "Decel"), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text("🏢", fontSize = 18.sp)
+                                        Text(
+                                            text = if (companyAddressSet) localized("公司", "Work") else localized("设公司", "Set Work"),
+                                            fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                            color = if (companyAddressSet) Color.White else Color.White.copy(alpha = 0.5f)
+                                        )
                                     }
                                 }
                             }
                             9 -> {
                                 Button(
                                     onClick = { onPageChange(Page.Experiment); onDismiss?.invoke() },
-                                    modifier = Modifier.size(72.dp).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
                                     colors = ButtonDefaults.buttonColors(containerColor = ButtonExperiment),
                                     contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                                         Icon(CustomIcons.BugReport, "实验", Modifier.size(24.dp), tint = Color.White)
                                         Text(localized("实验", "Exp"), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                            10 -> {
+                                // 🔵 车速环 — 打开 GitHub
+                                val speed = carrotManFields.vEgoKph.toInt()
+                                Button(
+                                    onClick = { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/jixiexiaoge/navipilot")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) },
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Text("$speed", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text(localized("车速", "Speed"), fontSize = 8.sp, color = Color.White.copy(alpha = 0.8f))
+                                    }
+                                }
+                            }
+                            11 -> {
+                                // ⛔ 限速值
+                                val limit = carrotManFields.nRoadLimitSpeed
+                                Button(
+                                    onClick = { },
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFBBF24)),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Text(if (limit > 0) "$limit" else "--", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = if (limit > 0) Color(0xFFFBBF24) else Color.White.copy(alpha = 0.5f))
+                                        Text(localized("限速", "Limit"), fontSize = 8.sp, color = Color.White.copy(alpha = 0.7f))
+                                    }
+                                }
+                            }
+                            12 -> {
+                                // 🟢 巡航环 — 打开设备 Web 控制页
+                                val cruise = carrotManFields.vCruiseKph.toInt()
+                                Button(
+                                    onClick = {
+                                        val ip = networkManager?.getCurrentDeviceIP()
+                                        if (ip != null) {
+                                            try {
+                                                context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("http://$ip:7000")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                                            } catch (_: Exception) { }
+                                        }
+                                    },
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22C55E)),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Text("$cruise", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text(localized("巡航", "Cruise"), fontSize = 8.sp, color = Color.White.copy(alpha = 0.8f))
+                                    }
+                                }
+                            }
+                            13 -> {
+                                // 🧪 实验模式切换
+                                Button(
+                                    onClick = { onExperimentClick() },
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (isOpenpilotActive) Color(0xFF8B5CF6) else Color(0xFF475569)),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Text("🧪", fontSize = 18.sp)
+                                        Text(localized("实验", "Exp"), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isOpenpilotActive) Color(0xFF8B5CF6) else Color.White.copy(alpha = 0.5f))
+                                    }
+                                }
+                            }
+                            14 -> {
+                                // 🚦 红绿灯
+                                val tColor = when (trafficLightState) {
+                                    0 -> Color(0xFF22C55E); 1 -> Color(0xFFEF4444); 2 -> Color(0xFFFBBF24)
+                                    else -> Color(0xFF64748B)
+                                }
+                                val dirLabel = when (trafficLightDir) {
+                                    1 -> "←"; 2 -> "→"; 3 -> "↩"; 4 -> "↑"; 5 -> "↪"; else -> ""
+                                }
+                                Button(
+                                    onClick = { },
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (trafficLightState >= 0 && trafficLightCountdown > 0) tColor else Color(0xFF475569)),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(modifier = Modifier.size(8.dp).clip(androidx.compose.foundation.shape.CircleShape).background(tColor))
+                                            if (dirLabel.isNotEmpty()) { Spacer(Modifier.width(2.dp)); Text(dirLabel, fontSize = 9.sp, color = Color(0xFF94A3B8)) }
+                                        }
+                                        Text(text = if (trafficLightState >= 0 && trafficLightCountdown > 0) "${trafficLightCountdown}s" else "--",
+                                            fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (trafficLightState >= 0) tColor else Color.White.copy(alpha = 0.5f))
+                                        Text(localized("红绿灯", "Traffic"), fontSize = 7.sp, color = Color.White.copy(alpha = 0.6f))
+                                    }
+                                }
+                            }
+                            15 -> {
+                                // 📤 数据分享
+                                val isSharing = isShareDataEnabled == true
+                                Button(
+                                    onClick = { onShareDataClick() },
+                                    modifier = Modifier.size(btnSize).shadow(4.dp, RoundedCornerShape(14.dp)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (isSharing) Color(0xFF22C55E) else Color(0xFF475569)),
+                                    contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Text("📤", fontSize = 16.sp)
+                                        Text(text = if (isSharing) localized("分发", "On") else localized("分享", "Share"),
+                                            fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isSharing) Color(0xFF22C55E) else Color.White.copy(alpha = 0.5f))
                                     }
                                 }
                             }

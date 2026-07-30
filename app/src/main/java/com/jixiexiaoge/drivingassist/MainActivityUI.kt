@@ -345,58 +345,7 @@ class MainActivityUI(
                 )
             }
 
-            // 底部：控制栏（横向平铺）
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Surface800)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 蓝圈：当前车速，点击打开 GitHub 项目页
-                HomePanelSpeedRing(
-                    modifier = Modifier,
-                    value = carrotManFields.vEgoKph.toInt(),
-                    color = Color(0xFF3B82F6),
-                    onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/jixiexiaoge/navipilot"))
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        mapContext.startActivity(intent)
-                    }
-                )
-                // 绿圈：设定巡航速度，点击打开7000 Web
-                HomePanelSpeedRing(
-                    modifier = Modifier,
-                    value = cruiseSetSpeed,
-                    color = Color(0xFF22C55E),
-                    onClick = {
-                        val ip = core.networkManager.getCurrentDeviceIP() ?: return@HomePanelSpeedRing
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("http://$ip:7000"))
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        mapContext.startActivity(intent)
-                    }
-                )
-                // 回家按钮
-                HomeControlPanelEmojiAddress(
-                    modifier = Modifier,
-                    emoji = "🏠",
-                    accessibilityLabel = localized("家", "Home"),
-                    addressSet = homeAddressSet,
-                    onShortClick = { homeNavTrigger++ },
-                    onLongClick = { homeNavLongTrigger++ }
-                )
-                // 公司按钮
-                HomeControlPanelEmojiAddress(
-                    modifier = Modifier,
-                    emoji = "🏢",
-                    accessibilityLabel = localized("公司", "Work"),
-                    addressSet = companyAddressSet,
-                    onShortClick = { companyNavTrigger++ },
-                    onLongClick = { companyNavLongTrigger++ }
-                )
-            }
-            }
+        }
 
         // 7706 JSON 调试面板（点击车道盲区面板触发）
         if (show7706JsonDebug) {
@@ -820,6 +769,43 @@ class MainActivityUI(
             }
         }
 
+        val onShareDataClick: () -> Unit = {
+            if (carrotParamClient == null) {
+                android.widget.Toast.makeText(
+                    panelContext,
+                    localized("设备未连接", "Device not connected"),
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                coroutineScope.launch {
+                    val currentMode = isShareDataEnabled ?: carrotParamClient
+                        .getParams("ShareData")
+                        .getOrNull()
+                        ?.get("ShareData")
+                        ?.let(::parseExperimentalMode)
+                        ?: false
+                    val targetMode = !currentMode
+                    val result = carrotParamClient.setParam("ShareData", if (targetMode) 1 else 0)
+                    if (result.isSuccess) {
+                        isShareDataEnabled = targetMode
+                        android.widget.Toast.makeText(
+                            panelContext,
+                            if (targetMode) localized("数据分发已开启", "Share ON")
+                            else localized("数据分发已关闭", "Share OFF"),
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        android.widget.Toast.makeText(
+                            panelContext,
+                            result.exceptionOrNull()?.message
+                                ?: localized("切换失败", "Switch failed"),
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
+        }
+
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -852,160 +838,19 @@ class MainActivityUI(
                             onSearchClick = { onSearchClick() },
                             onShow7706Debug = { onLanePanelClick() },
                             commaConnectionState = commaConnectionState,
+                            onHomeNavClick = onHomeNavClick,
+                            onHomeNavLongClick = onHomeNavLongClick,
+                            onCompanyNavClick = onCompanyNavClick,
+                            onCompanyNavLongClick = onCompanyNavLongClick,
+                            homeAddressSet = homeAddressSet,
+                            companyAddressSet = companyAddressSet,
+                            onExperimentClick = { onExperimentClick() },
+                            onShareDataClick = { onShareDataClick() },
+                            isShareDataEnabled = isShareDataEnabled,
+                            trafficLightState = carrotManFields.trafficLightState,
+                            trafficLightCountdown = carrotManFields.trafficLightCountdown,
+                            trafficLightDir = carrotManFields.amap_traffic_light_dir,
                         )
-                    }
-                }
-
-                // 🚗 驾驶状态（实验模式 + 道路信息 + 红绿灯 合并）
-                Card(
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = Surface800.copy(alpha = 0.85f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(8.dp)) {
-                        // 标题
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🚗", fontSize = 11.sp)
-                            Spacer(Modifier.width(3.dp))
-                            Text(localized("驾驶状态", "Driving"), color = Color(0xFF94A3B8), fontSize = 10.sp, fontWeight = FontWeight.Medium)
-                        }
-                        Spacer(Modifier.height(6.dp))
-
-                        // 行1: 实验模式 + 道路信息
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // 实验模式切换
-                            val expColor = when (isExperimentalMode) {
-                                true -> Color(0xFF8B5CF6)
-                                false -> Color(0xFF06B6D4)
-                                null -> Color(0xFF475569)
-                            }
-                            val expLabel = when (isExperimentalMode) {
-                                true -> localized("实验模式", "Exp Mode")
-                                false -> localized("Chill 模式", "Chill")
-                                null -> localized("未连接", "Disconnected")
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(expColor.copy(alpha = 0.15f))
-                                    .clickable { onExperimentClick() }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(expLabel, fontSize = 11.sp, color = expColor, fontWeight = FontWeight.Bold)
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(when (isExperimentalMode) { true -> "🧪" false -> "❄️" null -> "..." }, fontSize = 10.sp)
-                                }
-                            }
-
-                            // 数据分享开关
-                            Box(
-                                modifier = Modifier
-                                    .padding(start = 4.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isShareDataEnabled == true) Color(0xFF22C55E).copy(alpha = 0.15f) else Color(0xFF475569).copy(alpha = 0.15f))
-                                    .clickable {
-                                        val client = carrotParamClient
-                                        if (client != null) {
-                                            kotlinx.coroutines.MainScope().launch {
-                                                val newVal = if (isShareDataEnabled == true) 0 else 1
-                                                client.setParam("ShareData", newVal)
-                                                isShareDataEnabled = isShareDataEnabled != true
-                                            }
-                                        }
-                                    }
-                                    .padding(horizontal = 6.dp, vertical = 4.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("📤", fontSize = 8.sp)
-                                    Spacer(Modifier.width(2.dp))
-                                    Text(
-                                        text = if (isShareDataEnabled == true) localized("正在分发", "Sharing") else localized("开启分享", "Share"),
-                                        color = if (isShareDataEnabled == true) Color(0xFF22C55E) else Color(0xFF64748B),
-                                        fontSize = 9.sp, fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            // 道路名称 + 限速
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = if (carrotManFields.szPosRoadName.isNotEmpty()) carrotManFields.szPosRoadName else localized("未知道路", "Unknown Rd"),
-                                    color = Color.White, fontSize = 11.sp, maxLines = 1
-                                )
-                                if (carrotManFields.nRoadLimitSpeed > 0) {
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("⛔", fontSize = 10.sp)
-                                    Spacer(Modifier.width(2.dp))
-                                    Text("${carrotManFields.nRoadLimitSpeed}", color = Color(0xFFFBBF24), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        HorizontalDivider(color = Color(0xFF334155).copy(alpha = 0.5f), thickness = 0.5.dp)
-                        Spacer(Modifier.height(6.dp))
-
-                        // 行2: 前车距离 + 红绿灯
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // 前车信息
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🚘", fontSize = 11.sp)
-                                Spacer(Modifier.width(3.dp))
-                                val hasLead = (vehicleData?.modelV2?.leadProb ?: 0f) > 0.3f && (vehicleData?.modelV2?.leadX ?: 0f) > 0
-                                Text(
-                                    text = if (hasLead) "${vehicleData?.modelV2?.leadX?.toInt()} m" else localized("-- m", "-- m"),
-                                    color = if (hasLead) Color(0xFF22C55E) else Color(0xFF64748B),
-                                    fontSize = 13.sp, fontWeight = FontWeight.Bold
-                                )
-                            }
-
-                            // 红绿灯
-                            val amapState = carrotManFields.trafficLightState
-                            val amapCountdown = carrotManFields.trafficLightCountdown
-                            val tColor = when (amapState) {
-                                0 -> Color(0xFF22C55E)
-                                1 -> Color(0xFFEF4444)
-                                2 -> Color(0xFFFBBF24)
-                                else -> Color(0xFF64748B)
-                            }
-                            val tLabel = when (amapState) {
-                                0 -> localized("绿灯", "Green")
-                                1 -> localized("红灯", "Red")
-                                2 -> localized("黄灯", "Yellow")
-                                else -> localized("--", "--")
-                            }
-                            if (amapState >= 0 && amapCountdown > 0) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(tColor))
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(tLabel, fontSize = 12.sp, color = tColor, fontWeight = FontWeight.Bold)
-                                    // 灯类型方向
-                                    val dir = carrotManFields.amap_traffic_light_dir
-                                    val dirLabel = when (dir) {
-                                        1 -> "←"
-                                        2 -> "→"
-                                        3 -> "↩"
-                                        4 -> "↑"
-                                        5 -> "↪"
-                                        else -> ""
-                                    }
-                                    if (dirLabel.isNotEmpty()) {
-                                        Spacer(Modifier.width(2.dp))
-                                        Text(dirLabel, fontSize = 11.sp, color = Color(0xFF94A3B8))
-                                    }
-                                    Spacer(Modifier.width(4.dp))
-                                    Text("${amapCountdown}s", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
                     }
                 }
 
