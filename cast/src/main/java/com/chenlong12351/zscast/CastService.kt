@@ -103,17 +103,17 @@ class CastService : Service() {
         ): ByteArray {
             val buf = ByteBuffer.allocate(40 + payload.size).order(ByteOrder.BIG_ENDIAN)
             buf.put("CNV2".toByteArray(Charsets.US_ASCII))
-            buf.put(2)              // protocol_version
-            buf.put(messageType)    // 2=keyframe 3=delta
-            buf.put(format)         // 3=Annex-B
-            buf.put(flags)          // 1=keyframe
+            buf.put(2.toByte())       // protocol_version
+            buf.put(messageType.toByte()) // 2=keyframe 3=delta
+            buf.put(format.toByte())  // 3=Annex-B
+            buf.put(flags.toByte())   // 1=keyframe
             buf.putInt(handle)
             buf.putInt(revision)
             buf.putLong(seq)
             buf.putLong(tsMs)
             buf.putInt(payload.size)
-            buf.putShort(width)
-            buf.putShort(height)
+            buf.putShort(width.toShort())
+            buf.putShort(height.toShort())
             buf.put(payload)
             return buf.array()
         }
@@ -132,7 +132,7 @@ class CastService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_STOP -> { shutdown(); stopSelf() }
+            ACTION_STOP -> { castJob?.cancel(); scope.launch { shutdown() }; stopSelf() }
             ACTION_START -> {
                 val host = pendingHost
                 val code = pendingResultCode
@@ -256,6 +256,10 @@ class CastService : Service() {
             val surface = c.createInputSurface()
             var csd = ByteArray(0)
             c.setCallback(object : MediaCodec.Callback() {
+                override fun onInputBufferAvailable(codec: MediaCodec, index: Int) {
+                    // surface 输入模式不会回调,空实现满足抽象类要求
+                }
+
                 override fun onOutputBufferAvailable(
                     codec: MediaCodec, index: Int, info: MediaCodec.BufferInfo,
                 ) {

@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
             ActivityResultContracts.StartActivityForResult()
         ) { res ->
             if (res.resultCode == Activity.RESULT_OK && res.data != null) {
-                CastService.start(this, input.trim(), res.resultCode, res.data!!)
+                CastService.start(this@MainActivity, input.trim(), res.resultCode, res.data!!)
             } else {
                 CastService.state.value = "未授权屏幕录制"
             }
@@ -102,7 +102,7 @@ class MainActivity : ComponentActivity() {
             ) { Text(if (casting) "投屏运行中" else "开始投屏", fontSize = 18.sp) }
 
             OutlinedButton(
-                onClick = { CastService.stop(this) },
+                onClick = { CastService.stop(this@MainActivity) },
                 enabled = casting,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("停止投屏", fontSize = 18.sp) }
