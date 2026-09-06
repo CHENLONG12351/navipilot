@@ -31,8 +31,7 @@ jobs:
           chmod +x gradlew
           if ! ./gradlew :app:assembleDebug :cast:assembleDebug --no-daemon > build.log 2>&1; then
             tail -40 build.log
-            ERR=$(grep -B2 -A6 -iE '^e: |error: |FAILURE|What went wrong' build.log | head -80 || true)
-            gh release create "build-failed-${{ github.run_number }}" --repo "$GITHUB_REPOSITORY"               --title "BUILD FAILED #${{ github.run_number }}"               --notes "$(printf '%s' "$ERR" | head -c 6000)" || true
+            gh release create "build-failed-${{ github.run_number }}" --repo "$GITHUB_REPOSITORY"               --title "BUILD FAILED #${{ github.run_number }}"               --notes "see build.log" build.log || true
             exit 1
           fi
           tail -5 build.log
