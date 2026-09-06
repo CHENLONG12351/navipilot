@@ -24,5 +24,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Navipilot"
-include(":app")
+include(":app", ":cast")
  

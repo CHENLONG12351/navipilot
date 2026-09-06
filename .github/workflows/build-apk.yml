@@ -27,15 +27,15 @@ jobs:
       - name: Build debug APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew :app:assembleDebug :cast:assembleDebug --no-daemon
 
       - name: Publish release with APK
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="zsnavi-$(TZ=Asia/Shanghai date +%Y%m%d-%H%M)"
-          gh release create "$TAG" app/build/outputs/apk/debug/*.apk \
+          gh release create "$TAG" app/build/outputs/apk/debug/*.apk cast/build/outputs/apk/debug/*.apk \
             --repo "$GITHUB_REPOSITORY" \
             --title "专属导航 $TAG" \
-            --notes "自用定制版:删除特斯拉车型与相关显示、删除赞助/用户身份展示,应用改名「专属导航」,可与官方版共存。"
+            --notes "专属导航:删特斯拉/赞助与用户身份显示。专属投屏:独立投屏 app,屏幕→H.264→C3 carrot_navi(7714),对接开源 WS v2 协议。"
           echo "release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
