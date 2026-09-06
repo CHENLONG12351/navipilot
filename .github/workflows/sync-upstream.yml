@@ -1,0 +1,95 @@
+name: sync-upstream
+
+# 每天 2 次检查上游 jixiexiaoge/navipilot 的 Amapauto 分支
+# 有新提交时:1) 镜像到本仓库 upstream-sync 分支  2) 自动开 PR 到 my-mod 并 assign 仓库主人
+# 无更新则静默退出。
+
+on:
+  schedule:
+    - cron: "41 1,13 * * *"  # UTC,即北京时间 09:41 / 21:41
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync upstream Amapauto
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          REPO="CHENLONG12351/navipilot"
+          UP="jixiexiaoge/navipilot"
+          BR="Amapauto"         # 跟踪的上游分支
+          SYNC="upstream-sync"  # 本仓库里的镜像分支
+          DEV="my-mod"          # 魔改分支(PR 目标)
+          api() { curl -sf -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+
+          NEW=$(git ls-remote "https://github.com/$UP" "refs/heads/$BR" | awk '{print $1}')
+          OLD=$(git ls-remote "https://github.com/$REPO" "refs/heads/$SYNC" | awk '{print $1}')
+
+          if [ "$NEW" = "$OLD" ]; then
+            echo "上游无更新: $BR @ ${NEW:0:10}"
+            exit 0
+          fi
+          echo "上游有更新: ${OLD:-none} -> ${NEW:0:10}"
+
+          # 1) 更新 upstream-sync 分支
+          API_OK=1
+          if [ -n "$OLD" ]; then
+            api -X PATCH "https://api.github.com/repos/$REPO/git/refs/heads/$SYNC" \
+              -d "{\"sha\":\"$NEW\",\"force\":true}" > /dev/null || API_OK=0
+          else
+            api -X POST "https://api.github.com/repos/$REPO/git/refs" \
+              -d "{\"ref\":\"refs/heads/$SYNC\",\"sha\":\"$NEW\"}" > /dev/null || API_OK=0
+          fi
+
+          if [ "$API_OK" != "1" ]; then
+            echo "refs API 失败,退回 git fetch+push(较慢)"
+            rm -rf s && git init -q s && cd s
+            git fetch -q "https://github.com/$UP" "$BR"
+            git push -q "https://x-access-token:${TOKEN}@github.com/${REPO}.git" \
+              "FETCH_HEAD:refs/heads/$SYNC" --force
+            cd .. && rm -rf s
+          fi
+          echo "upstream-sync -> ${NEW:0:10}"
+
+          # 2) 检查 my-mod 是否落后新上游、是否已有 open PR
+          CMP=$(api "https://api.github.com/repos/$REPO/compare/$DEV...$SYNC")
+          BEHIND=$(echo "$CMP" | jq -r '.behind_by // 0')
+          NUM=$(api "https://api.github.com/repos/$REPO/pulls?head=CHENLONG12351:$SYNC&state=open" \
+            | jq -r '.[0].number // empty')
+          echo "$DEV 落后上游 $BEHIND 个提交; 现有 PR: ${NUM:-无}"
+
+          # 3) 开 PR(或复用)
+          if [ "$BEHIND" -gt 0 ]; then
+            if [ -z "$NUM" ]; then
+              LOG=$(echo "$CMP" | jq -r '.commits[:15][] | "- " + (.commit.message | split("\n")[0])')
+              DATE=$(TZ=Asia/Shanghai date '+%Y-%m-%d %H:%M')
+              BODY=$(printf '上游 %s 的 **%s** 分支新增 **%d** 个提交,尚未合入 `%s`。\n\n最新提交:\n%s\n\n- 自动同步时间: %s(北京时间)\n- 合并前请查看 Files changed;如有冲突,本地 `git merge upstream-sync` 解决后推送即可\n- 本 PR 由定时任务自动创建' "$UP" "$BR" "$BEHIND" "$DEV" "$LOG" "$DATE")
+              PAYLOAD=$(jq -n --arg h "$SYNC" --arg b "$DEV" --arg t "⬆️ 上游 CP搭子 新增 $BEHIND 个提交" --arg body "$BODY" \
+                '{head:$h, base:$b, title:$t, body:$body}')
+              echo "$PAYLOAD" | api -X POST "https://api.github.com/repos/$REPO/pulls" -d @- > /tmp/pr.json
+              NUM=$(jq -r '.number' /tmp/pr.json)
+              api -X PATCH "https://api.github.com/repos/$REPO/issues/$NUM" \
+                -d '{"assignees":["CHENLONG12351"]}' > /dev/null
+              echo "已创建 PR #$NUM 并 assign 给 CHENLONG12351"
+            else
+              echo "PR #$NUM 已存在,分支已更新(push 会触发通知)"
+            fi
+          elif [ -n "$NUM" ]; then
+            # my-mod 已包含上游全部提交,说明已合并,自动关闭旧 PR
+            api -X PATCH "https://api.github.com/repos/$REPO/pulls/$NUM" -d '{"state":"closed"}' > /dev/null
+            api -X POST "https://api.github.com/repos/$REPO/issues/$NUM/comments" \
+              -d '{"body":"my-mod 已包含上游全部提交,自动关闭。"}' > /dev/null
+            echo "PR #$NUM 已自动关闭(上游更新已全部合入)"
+          fi
