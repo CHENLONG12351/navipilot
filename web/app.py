@@ -199,8 +199,8 @@ with app.app_context():
                     total_distance=1200.0,
                     sponsor_amount=100.0,
                     user_type=2,  # 支持者
-                    car_model='特斯拉 Model 3',
-                    wechat_name='特斯拉车主小王',
+                    car_model='迈锐宝 XL',
+                    wechat_name='迈锐宝车主小王',
                     modify_time=datetime.utcnow()
                 ),
                 User(

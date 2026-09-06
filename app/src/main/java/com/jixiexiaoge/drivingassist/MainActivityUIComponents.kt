@@ -373,7 +373,7 @@ object MainActivityUIComponents {
         Column {
             // 标题栏
             Text(
-                text = "CP搭子免费开源版",
+                text = "专属导航",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary,
@@ -713,13 +713,9 @@ object MainActivityUIComponents {
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
                     Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("🚗 CP搭子3.0", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text("🚗 专属导航", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                         Text(localized("兼容 openpilot 全系 CP 用户", "Compatible with all openpilot CP users"), fontSize = 12.sp, color = TextSecondary)
                         Text(localized("含欧尚 Z6 等车型", "Including Oushan Z6 and more"), fontSize = 11.sp, color = Color(0xFF94A3B8))
-                        Box(modifier = Modifier.fillMaxWidth().clickable { showAboutDialog = false }.padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
-                            Image(painter = painterResource(id = R.drawable.sponsor), contentDescription = localized("赞助图片", "Sponsor image"),
-                                modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 160.dp), contentScale = ContentScale.Fit)
-                        }
                         HorizontalDivider(color = Surface600)
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             AboutFeatureItem("🗺️", localized("高德车机版导航联动", "AMap Auto Integration"))

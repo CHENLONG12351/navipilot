@@ -1,0 +1,41 @@
+name: build-apk
+
+# push 到 my-mod 且改了 app 相关文件时,云端编译 debug APK 并发布 Release
+
+on:
+  push:
+    branches: [my-mod]
+    paths: ['app/**', 'build.gradle.kts', 'settings.gradle.kts', 'gradle/**', 'gradlew', '.github/workflows/build-apk.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Publish release with APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="zsnavi-$(TZ=Asia/Shanghai date +%Y%m%d-%H%M)"
+          gh release create "$TAG" app/build/outputs/apk/debug/*.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "专属导航 $TAG" \
+            --notes "自用定制版:删除特斯拉车型与相关显示、删除赞助/用户身份展示,应用改名「专属导航」,可与官方版共存。"
+          echo "release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"

@@ -14,7 +14,6 @@ SUPPORTED_CAR_BRANDS = (
   "mazda",
   "ford",
   "volkswagen",
-  "tesla",
 )
 
 

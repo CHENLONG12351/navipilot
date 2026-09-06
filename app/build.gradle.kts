@@ -30,11 +30,11 @@ android {
             ?: listOf("arm64-v8a")
 
     defaultConfig {
-        applicationId = "com.jixiexiaoge.drivingassist"
+        applicationId = "com.chenlong12351.zsnavi"
         minSdk = 29
         targetSdk = 35
         versionCode = 260724
-        versionName = "v260724"
+        versionName = "zsnavi-v1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

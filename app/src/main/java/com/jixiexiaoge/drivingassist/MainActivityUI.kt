@@ -135,7 +135,6 @@ class MainActivityUI(
                     // 根据当前页面显示不同内容
                     when (core.currentPage) {
                         is Page.Home -> HomePage(
-                            userType = core.userType.value,
                             carrotManFields = core.carrotManFields.value,
                             wsConnected = core.wsConnected.value,
                             wsDataTimeout = core.wsDataTimeout.value,
@@ -166,7 +165,6 @@ class MainActivityUI(
      */
     @Composable
     private fun HomePage(
-        userType: Int,
         carrotManFields: CarrotManFields,
         wsConnected: Boolean,
         wsDataTimeout: Boolean,
@@ -300,7 +298,6 @@ class MainActivityUI(
                         .fillMaxSize()
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                     carrotManFields = carrotManFields,
-                    userType = userType,
                     cruiseSetSpeed = cruiseSetSpeed,
                     carCruiseSpeed = try { carrotManFields.carcruiseSpeed.toInt() } catch (_: Exception) { 0 },
                     carrotParamClient = core.getCarrotParamClientSafely(),
@@ -587,17 +584,6 @@ class MainActivityUI(
         }
     }
 
-    /** 将用户类型数字转为可读文本（与 ProfilePage 一致） */
-    private fun userTypeDisplayName(userType: Int): String = when (userType) {
-        -1 -> localized("管理员", "Admin")
-        0 -> localized("未知用户", "Unknown")
-        1 -> localized("新用户", "New User")
-        2 -> localized("支持者", "Supporter")
-        3 -> localized("赞助者", "Sponsor")
-        4 -> localized("铁粉", "Super Fan")
-        else -> localized("未知类型", "Unknown Type")
-    }
-
     @Composable
     private fun CollapsibleCard(
         title: String,
@@ -649,7 +635,6 @@ class MainActivityUI(
     private fun HomeControlPanel(
         modifier: Modifier = Modifier,
         carrotManFields: CarrotManFields,
-        userType: Int,
         cruiseSetSpeed: Int,
         carCruiseSpeed: Int,
         carrotParamClient: CarrotParamClient?,

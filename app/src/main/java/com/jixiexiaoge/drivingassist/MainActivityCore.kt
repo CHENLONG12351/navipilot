@@ -77,7 +77,6 @@ class MainActivityCore(
     
     // 设备状态
     val deviceId = mutableStateOf("")
-    val userType = mutableStateOf(0) // 用户类型：0=未知，1=新用户，2=支持者，3=赞助者，4=铁粉
     
     // 使用统计状态（仅时长，单位：分钟）
     val usageDurationMinutes = mutableStateOf(0L)
